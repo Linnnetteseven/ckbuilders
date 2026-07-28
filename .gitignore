@@ -1,0 +1,36 @@
+# ── Node / TypeScript ──────────────────────────────────────────
+node_modules/
+dist/
+build/
+*.js.map
+pnpm-debug.log*
+yarn-error.log*
+.pnpm-store/
+
+# ── Rust ───────────────────────────────────────────────────────
+target/
+# Note: commit Cargo.lock for binaries (scripts), not for libraries
+
+# ── Secrets & keys — non-negotiable, never commit ─────────────
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+*.secret
+*_private_key*
+*_secret*
+*_mnemonic*
+*.keystore
+
+# ── CKB tooling ───────────────────────────────────────────────
+.offckb/
+offckb-data/
+
+# ── OS / Editor ───────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
