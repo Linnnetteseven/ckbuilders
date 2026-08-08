@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CKB Time Capsule</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Space+Mono&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0c0e14;
+      --surface:  #13161f;
+      --border:   #1e2433;
+      --accent:   #f59e0b;
+      --accent2:  #6366f1;
+      --text:     #e2e8f0;
+      --muted:    #64748b;
+      --success:  #10b981;
+      --error:    #ef4444;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Space Grotesk', sans-serif;
+      min-height: 100vh;
+      padding: 40px 20px 80px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+
+    header h1 {
+      font-size: clamp(28px, 5vw, 48px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    header h1 span { color: var(--accent); }
+
+    header p {
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 15px;
+      max-width: 480px;
+      margin-inline: auto;
+      line-height: 1.6;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+
+    @media (max-width: 680px) { .grid { grid-template-columns: 1fr; } }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+    }
+
+    .panel-title {
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 20px;
+      font-family: 'Space Mono', monospace;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--muted);
+      margin-bottom: 6px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    input, textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 14px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+      transition: border-color 0.15s;
+      outline: none;
+    }
+
+    input[type="password"] { font-family: 'Space Mono', monospace; font-size: 12px; }
+    input:focus, textarea:focus { border-color: var(--accent2); }
+    textarea { resize: vertical; min-height: 100px; }
+
+    button {
+      width: 100%;
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 6px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 12px;
+      cursor: pointer;
+      transition: opacity 0.15s;
+      letter-spacing: 0.02em;
+    }
+
+    button:hover { opacity: 0.88; }
+
+    .btn-read {
+      background: var(--accent2);
+      color: #fff;
+    }
+
+    .status {
+      margin-top: 14px;
+      font-size: 13px;
+      min-height: 20px;
+      font-family: 'Space Mono', monospace;
+    }
+    .status.error   { color: var(--error); }
+    .status.success { color: var(--success); }
+    .status.pending { color: var(--muted); }
+
+    .result-box {
+      margin-top: 20px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+
+    .result-label {
+      font-size: 11px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 6px;
+    }
+
+    .tx-hash {
+      font-family: 'Space Mono', monospace;
+      font-size: 11px;
+      color: var(--accent);
+      word-break: break-all;
+      line-height: 1.6;
+    }
+
+    .capsule-card {
+      margin-top: 20px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+    }
+
+    .capsule-meta {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .meta-item .meta-key {
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 3px;
+    }
+
+    .meta-item .meta-val {
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .capsule-message {
+      font-size: 15px;
+      line-height: 1.7;
+      color: var(--text);
+      white-space: pre-wrap;
+    }
+
+    .capsule-locked {
+      font-size: 14px;
+      color: var(--accent);
+      font-family: 'Space Mono', monospace;
+      text-align: center;
+      padding: 12px 0;
+    }
+
+    .hidden { display: none !important; }
+
+    .note {
+      max-width: 960px;
+      margin: 32px auto 0;
+      background: rgba(99,102,241,0.07);
+      border: 1px solid rgba(99,102,241,0.2);
+      border-radius: 8px;
+      padding: 14px 18px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.6;
+      font-family: 'Space Mono', monospace;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>CKB <span>Time Capsule</span></h1>
+  <p>Seal a message to your future self on the CKB blockchain. It lives there permanently, readable by anyone who has the transaction hash.</p>
+</header>
+
+<div class="grid">
+
+  <!-- SEAL -->
+  <div class="panel">
+    <div class="panel-title">// Seal a Capsule</div>
+    <form id="seal-form">
+      <label>Private Key (devnet)</label>
+      <input type="password" id="private-key" placeholder="0x..." autocomplete="off" />
+
+      <label>To</label>
+      <input type="text" id="to" placeholder="Future Linet" maxlength="60" />
+
+      <label>From</label>
+      <input type="text" id="from" placeholder="Linet, August 2026" maxlength="60" />
+
+      <label>Message</label>
+      <textarea id="message" placeholder="Write something to your future self..."></textarea>
+
+      <label>Open Date</label>
+      <input type="date" id="open-date" />
+
+      <button type="submit">Seal on Chain →</button>
+    </form>
+    <div id="seal-status" class="status"></div>
+    <div id="capsule-result" class="result-box hidden">
+      <div class="result-label">Capsule ID (save this)</div>
+      <div id="capsule-hash" class="tx-hash"></div>
+    </div>
+  </div>
+
+  <!-- READ -->
+  <div class="panel">
+    <div class="panel-title">// Open a Capsule</div>
+    <form id="read-form">
+      <label>Capsule ID (Transaction Hash)</label>
+      <input type="text" id="tx-hash" placeholder="0x..." />
+      <button type="submit" class="btn-read">Retrieve from Chain →</button>
+    </form>
+    <div id="read-status" class="status"></div>
+    <div id="capsule-display" class="capsule-card hidden">
+      <div class="capsule-meta">
+        <div class="meta-item">
+          <div class="meta-key">To</div>
+          <div class="meta-val" id="disp-to"></div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-key">From</div>
+          <div class="meta-val" id="disp-from"></div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-key">Sealed</div>
+          <div class="meta-val" id="disp-sealed"></div>
+        </div>
+        <div class="meta-item">
+          <div class="meta-key">Opens</div>
+          <div class="meta-val" id="disp-open-date"></div>
+        </div>
+      </div>
+      <div id="disp-message" class="capsule-message hidden"></div>
+      <div id="disp-locked" class="capsule-locked hidden"></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="note">
+  ⚠ The open-date check is client-side. The data is permanently on-chain regardless of date.
+  A cryptographic time-lock enforced by the network (via header_deps + a custom lock script)
+  is the planned v2 — coming once Rust script development is set up in Month 2.
+</div>
+
+<script type="module" src="./src/app.ts"></script>
+</body>
+</html>

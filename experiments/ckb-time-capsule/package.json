@@ -1,0 +1,16 @@
+{
+  "name": "ckb-time-capsule",
+  "version": "0.1.0",
+  "description": "Seal messages to your future self on the CKB blockchain",
+  "scripts": {
+    "start": "parcel index.html",
+    "build": "parcel build index.html"
+  },
+  "devDependencies": {
+    "parcel": "latest",
+    "typescript": "latest"
+  },
+  "dependencies": {
+    "@ckb-ccc/core": "^1.18.2"
+  }
+}
