@@ -1,0 +1,5 @@
+{
+  "buildCommand": "npx parcel build index.html --public-url /",
+  "outputDirectory": "dist",
+  "framework": null
+}

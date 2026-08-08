@@ -1,24 +1,17 @@
 /**
  * app.ts — CKB Time Capsule: UI and event handling
  *
- * Connects the HTML interface to the on-chain logic in lib.ts.
- * Runs against devnet by default. Switch NETWORK=testnet to use
- * the public testnet (requires funded testnet address).
+ * On Vercel we always use testnet — devnet is local only.
+ * The NETWORK env var is only meaningful for local development.
  */
 
 import { ccc } from "@ckb-ccc/core";
 import { sealCapsule, retrieveCapsule, isCapsuleReady, CapsuleData } from "./lib";
 
-// Use devnet by default — override with NETWORK env var at build time
-const NETWORK = process.env.NETWORK ?? "devnet";
-
-function buildClient(): ccc.Client {
-  if (NETWORK === "testnet") return new ccc.ClientPublicTestnet();
-  // Devnet runs locally via offckb node
-  return new ccc.ClientPublicTestnet("http://localhost:8114");
-}
-
-const client = buildClient();
+// Vercel deployment always hits testnet.
+// Locally you can override with NETWORK=devnet but devnet
+// cells won't be visible to anyone else anyway.
+const client = new ccc.ClientPublicTestnet();
 
 // ── Seal form ────────────────────────────────────────────────────────────────
 
@@ -118,8 +111,6 @@ function renderCapsule(capsule: CapsuleData): void {
 
   capsuleDisplay.classList.remove("hidden");
 }
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function showStatus(el: HTMLElement, msg: string, type: string): void {
   el.textContent = msg;
