@@ -1,7 +1,7 @@
 # CKBuilders Weekly Report — Week 1
 
 **Builder:** Linet Mugwanja ([@Linnnetteseven](https://github.com/Linnnetteseven))
-**Week Ending:** July 31, 2026
+**Week Ending:** August 2, 2026
 **Program Month:** 1 of 3
 
 ---

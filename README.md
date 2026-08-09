@@ -13,9 +13,9 @@ Progress log for the [CKBuilders program](https://nervoscatalyst.org/community-k
 
 | Week | Period | Status | Report |
 |------|--------|--------|--------|
-| W1 | Jul 28 – Jul 31 | ✅ Complete | [View →](./reports/ckb_weekly_report_w1.md) |
-| W2 | Aug 4 – Aug 7 | 🔄 In Progress | — |
-
+| W1 | Jul 28 – Aug 2 | ✅ Complete | [View →](./reports/ckb_weekly_report_w1.md) |
+| W2 | Aug 3 – Aug 9 | ✅ Complete | [View →](./reports/ckb_weekly_report_w2.md) |
+| W3 | Aug 10 – Aug 16 | 🔄 In Progress | — |
 ## Program Resources
 
 - [Official CKB Docs](https://docs.nervos.org)
