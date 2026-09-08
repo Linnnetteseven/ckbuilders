@@ -84,16 +84,16 @@ fn verify() -> Result<(), Error> {
 ```
 
 ---
-
 ## Evidence
 
 ### 3 tests passing
 
-![Tests passing](assets/Screenshot%20from%202026-08-30%2011-58-34.png)
+![Tests passing](../experiments/time-lock-script/assets/Screenshot%20from%202026-08-30%2011-58-34.png)
 
 ### RISC-V binary compiled
 
-![Build output](assets/Screenshot%20from%202026-08-30%2016-24-55.png)
+![Build output](../experiments/time-lock-script/assets/Screenshot%20from%202026-08-30%2016-24-55.png)
+
 
 ---
 
