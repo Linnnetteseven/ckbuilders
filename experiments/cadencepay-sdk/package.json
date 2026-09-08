@@ -1,0 +1,17 @@
+{
+  "name": "@cadencepay/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for the CadencePay recurring payment protocol on CKB",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"Tests coming in W8\""
+  },
+  "dependencies": {
+    "@ckb-ccc/core": "^0.0.15"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
