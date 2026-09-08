@@ -1,12 +1,15 @@
-# CKB Weekly Report — Week 6
+## CKB Weekly Report — Week 6
+
 **Builder:** Linet Mugwanja  **Period:** Sep 1 – Sep 7, 2026  **Repo:** github.com/Linnnetteseven/ckbuilders
----
+
 ## What I Built
+
 Scaffolded the CadencePay type script — the on-chain core of mycapstone. CadencePay is a cell-native recurring payment protocol onCKB. Problem: there is no trustless way to do on-chain subscriptionswithout a custodian. The type script enforces subscription intervalsvia header_deps, subscriber keeps custody of funds the whole time.
----
-## Key Concept: Lock vs Type Script
+
+# Key Concept: Lock vs Type Script
+
 A lock script gates access — who can spend a cell, runs only oninputs. A type script validates state transitions — runs on bothinputs and outputs, so we can enforce what the resulting state mustlook like.For CadencePay: you can only spend the Subscription Cell if yourecreate it correctly with an updated `last_claimed_block`. The typescript checks: has enough time passed? Is the new cell identicalexcept for `last_claimed_block`? Did it update to the current block?All pass → exit 0. Any fail → named error code.
----
+
 ## The Subscription Cell — 56 bytes
 [0..32]  recipient_lock_hash   — who receives payment
 
