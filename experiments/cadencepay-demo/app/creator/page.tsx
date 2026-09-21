@@ -1,87 +1,141 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
+import { Nav } from "@/components/Nav";
+import { useKeyWay } from "@ckb-keyway/react";
+
+const PRESETS = [
+  { label: "Daily",   blocks: "2000",  days: 1  },
+  { label: "Weekly",  blocks: "14000", days: 7  },
+  { label: "Monthly", blocks: "60000", days: 30 },
+];
 
 export default function CreatorPage() {
-  const [amount, setAmount]       = useState("5");
-  const [interval, setInterval]   = useState("2000");
-  const [copied, setCopied]       = useState(false);
+  const { authenticated, connection, login } = useKeyWay();
+  const [amount,   setAmount]   = useState("5");
+  const [interval, setInterval] = useState("2000");
+  const [copied,   setCopied]   = useState(false);
 
-  const intervalDays = Math.round(Number(interval) / 2000);
-  const mockAddress  = "ckb1qzda0cr08m85hc8jlnfp3sdrpk7z00fakefake";
-  const subscribeLink = typeof window !== "undefined"
-    ? `${window.location.origin}/subscribe/${mockAddress}`
-    : `https://cadencepay.vercel.app/subscribe/${mockAddress}`;
+  const days    = Math.round(Number(interval) / 2000);
+  const address = connection?.wallet.ckbAddress ?? "connect-wallet";
+  const link    = typeof window !== "undefined"
+    ? `${window.location.origin}/subscribe/${address}`
+    : "https://cadencepay.vercel.app/subscribe/...";
 
   const copy = () => {
-    navigator.clipboard.writeText(subscribeLink);
+    navigator.clipboard.writeText(link);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <main className="min-h-screen bg-black text-white">
-      <div className="max-w-xl mx-auto px-6 py-24">
-        <Link href="/" className="text-neutral-500 text-sm mb-8 block hover:text-white">← Back</Link>
-        <h1 className="text-3xl font-bold mb-2">Set up your subscription</h1>
-        <p className="text-neutral-400 mb-10">Share your link. Subscribers pay you on-chain every interval.</p>
+    <>
+      <Nav />
+      <main className="min-h-screen pt-24 pb-20 px-6">
+        <div className="max-w-xl mx-auto">
+          <Link href="/" className="text-xs text-[#7C7570] hover:text-[#1C1814] transition mb-8 block">
+            ← Back
+          </Link>
 
-        <div className="space-y-6">
-          <div>
-            <label className="block text-sm text-neutral-400 mb-2">Amount per interval (CKB)</label>
-            <input type="number" value={amount} onChange={e => setAmount(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 px-4 py-3 text-white focus:outline-none focus:border-white" />
-          </div>
+          <h1 className="display text-4xl font-bold mb-2">Set up your tier</h1>
+          <p className="text-[#7C7570] text-sm mb-10 max-w-md">
+            Configure your subscription terms. Each subscriber creates a Subscription
+            Cell on CKB — you collect on-chain, no platform take.
+          </p>
 
-          <div>
-            <label className="block text-sm text-neutral-400 mb-2">
-              Interval (blocks) — ~{intervalDays} day{intervalDays !== 1 ? "s" : ""} on CKB
-            </label>
-            <input type="number" value={interval} onChange={e => setInterval(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 px-4 py-3 text-white focus:outline-none focus:border-white" />
-            <div className="mt-2 flex gap-2">
-              {[["Daily","2000"],["Weekly","14000"],["Monthly","60000"]].map(([l,v]) => (
-                <button key={v} onClick={() => setInterval(v)}
-                  className="text-xs border border-neutral-700 px-3 py-1 hover:border-white transition">{l}</button>
-              ))}
+          <div className="space-y-7">
+            {/* Amount */}
+            <div>
+              <label className="block text-xs font-medium text-[#7C7570] mb-2">
+                Amount per interval (CKB)
+              </label>
+              <input
+                type="number"
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+                className="w-full bg-white border border-[#DDD9D3] rounded px-4 py-3 text-sm focus:outline-none focus:border-[#C44F6B] transition"
+              />
             </div>
-          </div>
 
-          <div className="bg-neutral-900 border border-neutral-800 p-6">
-            <div className="text-sm text-neutral-400 mb-4">Subscription terms</div>
-            <div className="space-y-2 font-mono text-sm">
+            {/* Interval */}
+            <div>
+              <label className="block text-xs font-medium text-[#7C7570] mb-2">
+                Interval — {days} day{days !== 1 ? "s" : ""} on CKB
+              </label>
+              <input
+                type="number"
+                value={interval}
+                onChange={e => setInterval(e.target.value)}
+                className="w-full bg-white border border-[#DDD9D3] rounded px-4 py-3 text-sm focus:outline-none focus:border-[#C44F6B] transition mb-3"
+              />
+              <div className="flex gap-2">
+                {PRESETS.map(p => (
+                  <button key={p.label} onClick={() => setInterval(p.blocks)}
+                    className={`text-xs px-3 py-1.5 rounded border transition ${
+                      interval === p.blocks
+                        ? "border-[#C44F6B] text-[#C44F6B] bg-[#F9ECF0]"
+                        : "border-[#DDD9D3] text-[#7C7570] hover:border-[#1C1814]"
+                    }`}>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Summary */}
+            <div className="bg-white border border-[#DDD9D3] rounded divide-y divide-[#EFECE7]">
               {[
-                ["Amount", `${amount} CKB / ${intervalDays} day${intervalDays !== 1 ? "s" : ""}`],
-                ["Interval", `${Number(interval).toLocaleString()} blocks`],
+                ["Amount",      `${amount} CKB every ${days} day${days !== 1 ? "s" : ""}`],
+                ["Interval",    `${Number(interval).toLocaleString()} blocks`],
                 ["Enforcement", "On-chain type script"],
-                ["Settlement", "Fiber Network"],
-              ].map(([k,v]) => (
-                <div key={k} className="flex justify-between">
-                  <span className="text-neutral-500">{k}</span>
-                  <span className={k === "Enforcement" ? "text-green-400" : ""}>{v}</span>
+                ["Settlement",  "Fiber Network"],
+              ].map(([k, v]) => (
+                <div key={k as string} className="flex justify-between items-center px-4 py-3">
+                  <span className="text-xs text-[#7C7570]">{k}</span>
+                  <span className={`text-xs font-medium ${k === "Enforcement" ? "text-[#2B6C50]" : ""}`}>
+                    {v}
+                  </span>
                 </div>
               ))}
             </div>
-          </div>
 
-          <div>
-            <div className="text-sm text-neutral-400 mb-2">Your subscribe link</div>
-            <div className="flex">
-              <div className="flex-1 bg-neutral-900 border border-neutral-700 px-4 py-3 text-xs font-mono text-neutral-400 truncate">
-                {subscribeLink}
+            {/* Share link */}
+            {authenticated && connection && (
+              <div>
+                <label className="block text-xs font-medium text-[#7C7570] mb-2">
+                  Share this link
+                </label>
+                <div className="flex border border-[#DDD9D3] rounded overflow-hidden">
+                  <div className="flex-1 bg-white px-4 py-3 text-xs font-mono text-[#7C7570] truncate">
+                    {link}
+                  </div>
+                  <button onClick={copy}
+                    className="bg-[#1C1814] hover:bg-[#C44F6B] transition text-white px-4 text-xs font-medium shrink-0">
+                    {copied ? "✓" : "Copy"}
+                  </button>
+                </div>
               </div>
-              <button onClick={copy}
-                className="bg-white text-black px-5 font-semibold text-sm hover:bg-neutral-200 transition">
-                {copied ? "✓" : "Copy"}
-              </button>
-            </div>
-          </div>
+            )}
 
-          <button className="w-full bg-white text-black py-4 font-semibold hover:bg-neutral-200 transition">
-            Connect Wallet to Deploy
-          </button>
+            {/* CTA */}
+            {!authenticated ? (
+              <button onClick={login}
+                className="w-full bg-[#1C1814] hover:bg-[#C44F6B] transition text-white py-3.5 rounded font-semibold text-sm">
+                Connect with Email
+              </button>
+            ) : !connection ? (
+              <div className="w-full border border-[#DDD9D3] py-3.5 rounded text-center text-sm text-[#7C7570] animate-pulse">
+                Recovering wallet…
+              </div>
+            ) : (
+              <button className="w-full bg-[#1C1814] hover:bg-[#C44F6B] transition text-white py-3.5 rounded font-semibold text-sm">
+                Deploy Subscription Tier
+              </button>
+            )}
+            <p className="text-xs text-[#7C7570] text-center">Testnet · type script deploy in W9</p>
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </>
   );
 }

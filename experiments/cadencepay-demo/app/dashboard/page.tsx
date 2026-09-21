@@ -1,91 +1,137 @@
 "use client";
 import Link from "next/link";
+import { Nav } from "@/components/Nav";
+import { useKeyWay } from "@ckb-keyway/react";
 
-const SUBS = [
-  {
-    id: "0xabc123",
-    creator: "ckb1qzda0cr...3f8a",
-    amountCKB: "5.00",
-    intervalDays: 1,
-    lastClaimed: 15_420_100n,
-    current: 15_421_800n,
-    interval: 2000n,
-  },
-  {
-    id: "0xdef456",
-    creator: "ckb1qzyx9kl...7c2b",
-    amountCKB: "10.00",
-    intervalDays: 7,
-    lastClaimed: 15_418_000n,
-    current: 15_421_800n,
-    interval: 14000n,
-  },
+const MOCK = [
+  { id: "0xabc", creator: "ckb1qzda0cr…3f8a", amountCKB: "5.00",  intervalDays: 1, last: 15_420_100n, current: 15_421_800n, interval: 2000n  },
+  { id: "0xdef", creator: "ckb1qzyx9kl…7c2b", amountCKB: "10.00", intervalDays: 7, last: 15_418_000n, current: 15_421_800n, interval: 14000n },
 ];
 
-function blocksLeft(last: bigint, interval: bigint, current: bigint): bigint {
-  const next = last + interval;
-  return current >= next ? 0n : next - current;
+function blocksLeft(last: bigint, int: bigint, cur: bigint): bigint {
+  const next = last + int;
+  return cur >= next ? 0n : next - cur;
 }
 
 export default function Dashboard() {
+  const { authenticated, connection, login } = useKeyWay();
+
   return (
-    <main className="min-h-screen bg-black text-white">
-      <div className="max-w-3xl mx-auto px-6 py-24">
-        <Link href="/" className="text-neutral-500 text-sm mb-8 block hover:text-white">← Back</Link>
-        <h1 className="text-3xl font-bold mb-2">Dashboard</h1>
-        <p className="text-neutral-400 mb-12">
-          Active subscriptions. Data read directly from CKB cells — no database.
-        </p>
+    <>
+      <Nav />
+      <main className="min-h-screen pt-24 pb-20 px-6">
+        <div className="max-w-2xl mx-auto">
+          <Link href="/" className="text-xs text-[#7C7570] hover:text-[#1C1814] transition mb-8 block">
+            ← Back
+          </Link>
 
-        <div className="space-y-4">
-          {SUBS.map(s => {
-            const remaining  = blocksLeft(s.lastClaimed, s.interval, s.current);
-            const claimable  = remaining === 0n;
-            return (
-              <div key={s.id} className="border border-neutral-800 p-6 hover:border-neutral-600 transition">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <div className="font-mono text-sm text-neutral-400 mb-1">{s.creator}</div>
-                    <div className="text-xl font-bold">{s.amountCKB} CKB / {s.intervalDays} day{s.intervalDays !== 1 ? "s" : ""}</div>
-                  </div>
-                  <div className={`text-xs px-3 py-1 font-mono ${claimable ? "bg-green-900 text-green-300" : "bg-neutral-800 text-neutral-400"}`}>
-                    {claimable ? "CLAIMABLE" : "ACTIVE"}
-                  </div>
+          <div className="flex items-baseline justify-between mb-10">
+            <h1 className="display text-4xl font-bold">Dashboard</h1>
+            {connection && (
+              <span className="text-xs font-mono text-[#7C7570]">
+                {connection.wallet.ckbAddress.slice(0,10)}…{connection.wallet.ckbAddress.slice(-4)}
+              </span>
+            )}
+          </div>
+
+          {!authenticated ? (
+            <div className="border border-[#DDD9D3] rounded p-12 text-center bg-white">
+              <p className="text-[#7C7570] text-sm mb-6">Connect to view your Subscription Cells</p>
+              <button onClick={login}
+                className="bg-[#1C1814] hover:bg-[#C44F6B] transition text-white px-6 py-2.5 rounded text-sm font-medium">
+                Connect with Email
+              </button>
+            </div>
+          ) : !connection ? (
+            <div className="space-y-4">
+              {[1,2].map(i => (
+                <div key={i} className="border border-[#DDD9D3] rounded p-6 bg-white animate-pulse">
+                  <div className="h-4 bg-[#EFECE7] rounded w-1/3 mb-3" />
+                  <div className="h-6 bg-[#EFECE7] rounded w-1/2" />
                 </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {MOCK.map(s => {
+                const remaining = blocksLeft(s.last, s.interval, s.current);
+                const claimable = remaining === 0n;
+                const progress  = Math.min(100, Math.round(
+                  Number(s.current - s.last) / Number(s.interval) * 100
+                ));
 
-                <div className="grid grid-cols-3 gap-4 text-sm font-mono mb-4">
-                  {[
-                    ["Last claimed", `Block ${s.lastClaimed.toLocaleString()}`],
-                    ["Current block", s.current.toLocaleString()],
-                    ["Next claim", claimable ? "Now" : `${remaining.toLocaleString()} blocks`],
-                  ].map(([label, val]) => (
-                    <div key={label as string}>
-                      <div className="text-neutral-500 mb-1">{label}</div>
-                      <div>{val}</div>
+                return (
+                  <div key={s.id} className="border border-[#DDD9D3] rounded bg-white hover:border-[#C44F6B]/40 transition">
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[#EFECE7]">
+                      <div>
+                        <div className="text-xs font-mono text-[#7C7570] mb-1">{s.creator}</div>
+                        <div className="font-semibold text-sm">
+                          {s.amountCKB} CKB / {s.intervalDays} day{s.intervalDays !== 1 ? "s" : ""}
+                        </div>
+                      </div>
+                      <span className={`text-xs px-2.5 py-1 rounded-full border font-medium ${
+                        claimable
+                          ? "bg-[#F9ECF0] text-[#C44F6B] border-[#C44F6B]/20"
+                          : "bg-[#EFECE7] text-[#7C7570] border-[#DDD9D3]"
+                      }`}>
+                        {claimable ? "Claimable" : "Active"}
+                      </span>
                     </div>
-                  ))}
-                </div>
 
-                <div className="flex gap-3">
-                  <button disabled={!claimable}
-                    className={`px-6 py-2 text-sm font-semibold transition ${
-                      claimable ? "bg-white text-black hover:bg-neutral-200" : "border border-neutral-800 text-neutral-600 cursor-not-allowed"
-                    }`}>
-                    {claimable ? "Trigger Claim" : "Not yet"}
-                  </button>
-                  <button className="px-6 py-2 text-sm border border-neutral-700 hover:border-red-500 hover:text-red-400 transition">
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                    {/* Progress */}
+                    <div className="px-5 py-4 border-b border-[#EFECE7]">
+                      <div className="flex justify-between text-xs text-[#7C7570] mb-2">
+                        <span>Progress to next claim</span>
+                        <span>{progress}%</span>
+                      </div>
+                      <div className="h-1.5 bg-[#EFECE7] rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-[#C44F6B] rounded-full transition-all"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                    </div>
 
-        <div className="mt-12 pt-8 border-t border-neutral-800 text-xs text-neutral-600">
-          Subscription Cells queried from CKB testnet by type script hash.
+                    {/* Stats */}
+                    <div className="grid grid-cols-3 divide-x divide-[#EFECE7] border-b border-[#EFECE7]">
+                      {[
+                        ["Last claim",  `Block ${s.last.toLocaleString()}`],
+                        ["Current",     s.current.toLocaleString()],
+                        ["Next claim",  claimable ? "Now" : `${remaining.toLocaleString()} blocks`],
+                      ].map(([l, v]) => (
+                        <div key={l as string} className="px-5 py-3">
+                          <div className="text-xs text-[#7C7570] mb-1">{l}</div>
+                          <div className="text-xs font-mono font-medium">{v}</div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-2 p-4">
+                      <button
+                        disabled={!claimable}
+                        className={`flex-1 py-2 rounded text-xs font-semibold transition ${
+                          claimable
+                            ? "bg-[#1C1814] hover:bg-[#C44F6B] text-white"
+                            : "bg-[#EFECE7] text-[#7C7570] cursor-not-allowed"
+                        }`}>
+                        {claimable ? "Trigger Claim" : `${remaining.toLocaleString()} blocks left`}
+                      </button>
+                      <button className="px-4 py-2 rounded text-xs border border-[#DDD9D3] hover:border-red-300 hover:text-red-500 transition">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+              <p className="text-xs text-[#7C7570] text-center pt-2">
+                Live cell queries via getSubscriptions() in W9
+              </p>
+            </div>
+          )}
         </div>
-      </div>
-    </main>
+      </main>
+    </>
   );
 }
