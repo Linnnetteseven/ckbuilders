@@ -8,10 +8,9 @@
     "build": "tsc",
     "test": "echo \"Tests coming in W8\""
   },
-  "dependencies": {
-    "@ckb-ccc/core": "^0.0.15"
-  },
   "devDependencies": {
+    "@ckb-ccc/core": "^1.22.0",
+    "tsx": "^4.23.15",
     "typescript": "^5.0.0"
   }
 }
