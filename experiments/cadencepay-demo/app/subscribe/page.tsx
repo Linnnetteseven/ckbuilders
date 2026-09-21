@@ -3,33 +3,25 @@ import { useState } from "react";
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { useKeyWay } from "@ckb-keyway/react";
-import { ccc } from "@ckb-ccc/core";
-import {
-  CADENCEPAY_SCRIPT,
-  CADENCEPAY_CELL_DEP,
-  TESTNET_CLIENT,
-  EXPLORER_TX,
-} from "@/lib/cadencepay";
-import { encodeSubscriptionData } from "@/lib/sdk";
+import { EXPLORER_TX } from "@/lib/cadencepay";
 
-// Demo creator: account #1 from offckb (has 1.6M testnet CKB)
 const CREATOR_ADDRESS =
   "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqt435c3epyrupszm7khk6weq5lrlyt52lg48ucew";
 
 const TIER = {
   amountCKB:      "5",
-  amountShannons: 500_000_000n,
+  amountShannons: "500000000",
   intervalDays:   1,
-  intervalBlocks: 2000n,
+  intervalBlocks: "2000",
 };
 
-type Step = "idle" | "building" | "signing" | "submitted" | "error";
+type Step = "idle" | "building" | "submitted" | "error";
 
 export default function SubscribePage() {
   const { authenticated, connection, login } = useKeyWay();
   const [step,   setStep]   = useState<Step>("idle");
-  const [txHash, setTxHash] = useState<string>("");
-  const [error,  setError]  = useState<string>("");
+  const [txHash, setTxHash] = useState("");
+  const [error,  setError]  = useState("");
 
   const handleSubscribe = async () => {
     if (!connection) return;
@@ -37,65 +29,25 @@ export default function SubscribePage() {
     setError("");
 
     try {
-      // 1. Resolve subscriber identity from KeyWay wallet
-      const subscriberAddrObj = await ccc.Address.fromString(
-        connection.wallet.ckbAddress,
-        TESTNET_CLIENT,
-      );
-      const subscriberLock     = subscriberAddrObj.script;
-      const subscriberLockHash = subscriberLock.hash(); // 32-byte blake2b
-
-      // 2. Resolve creator/recipient lock hash from their CKB address
-      //    This is the real 32-byte hash of the full lock script
-      const creatorAddrObj    = await ccc.Address.fromString(CREATOR_ADDRESS, TESTNET_CLIENT);
-      const recipientLockHash = creatorAddrObj.script.hash();
-
-      // 3. Encode 56-byte Subscription Cell data (correct LE layout)
-      //    [0..32]  recipient_lock_hash
-      //    [32..40] amount_per_interval (u64 LE)
-      //    [40..48] interval_blocks     (u64 LE)
-      //    [48..56] last_claimed_block  (u64 LE = 0)
-      const cellData = encodeSubscriptionData({
-        recipientLockHash,
-        amountPerInterval: TIER.amountShannons,
-        intervalBlocks:    TIER.intervalBlocks,
-        subscriberLockHash,
+      const res = await fetch("/api/subscribe", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subscriberAddress: connection.wallet.ckbAddress,
+          creatorAddress:    CREATOR_ADDRESS,
+          amountShannons:    TIER.amountShannons,
+          intervalBlocks:    TIER.intervalBlocks,
+        }),
       });
 
-      // 4. Build type script — subscriber lock hash goes into ARGS (for cancel mode)
-      const typeScript = new ccc.Script(
-        CADENCEPAY_SCRIPT.codeHash as `0x${string}`,
-        CADENCEPAY_SCRIPT.hashType,
-        subscriberLockHash as `0x${string}`,
-      );
+      const data = await res.json() as { success: boolean; txHash?: string; error?: string };
 
-      // 5. Build the transaction (200 CKB Subscription Cell)
-      const tx = ccc.Transaction.from({
-        cellDeps:    [CADENCEPAY_CELL_DEP],
-        outputs:     [{ capacity: 20_000_000_000n, lock: subscriberLock, type: typeScript }],
-        outputsData: [ccc.bytesFrom(cellData)],
-      });
+      if (!data.success) throw new Error(data.error ?? "Unknown error");
 
-      setStep("signing");
-
-      // 6. Log the built transaction for verification
-      console.log("✓ Transaction built successfully");
-      console.log("Type script code hash:", CADENCEPAY_SCRIPT.codeHash);
-      console.log("Subscriber lock hash:", subscriberLockHash);
-      console.log("Recipient lock hash:", recipientLockHash);
-      console.log("Cell data length:", cellData.length, "bytes");
-      console.log("Tx outputs:", tx.outputs.length);
-
-      // TODO: Sign via KeyWay Lit PKP once API supports standard CKB tx signing
-      // For now: transaction is fully built and valid — signing in W10
-      await new Promise(r => setTimeout(r, 800));
-
-      // Return the deployment tx as demo proof (shows the type script is real)
-      setTxHash(process.env.NEXT_PUBLIC_CADENCEPAY_TX_HASH ?? "0x44aff6cf3d685f8dd02879325547e4d5c0a6c66518bbe49d09db062f0f580307");
+      setTxHash(data.txHash ?? "");
       setStep("submitted");
 
-    } catch (err: unknown) {
-      console.error("Subscribe error:", err);
+    } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
       setStep("error");
     }
@@ -111,14 +63,14 @@ export default function SubscribePage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h2 className="display text-3xl font-bold mb-3">Transaction Built</h2>
+          <h2 className="display text-3xl font-bold mb-3">Subscribed</h2>
           <p className="text-[#7C7570] text-sm mb-3 leading-relaxed">
-            Subscription Cell constructed. 56-byte cell data encoded correctly.
-            Signing via KeyWay Lit PKP completes in W10.
+            Subscription Cell is live on CKB testnet.
+            Claims trigger every {TIER.intervalDays} day automatically.
           </p>
           <a href={EXPLORER_TX(txHash)} target="_blank" rel="noreferrer"
             className="text-xs font-mono text-[#C44F6B] hover:underline block mb-8 break-all">
-            View type script on explorer →
+            {txHash.slice(0, 24)}…{txHash.slice(-8)} →
           </a>
           <Link href="/dashboard"
             className="inline-block bg-[#1C1814] hover:bg-[#C44F6B] transition text-white px-8 py-3 rounded text-sm font-medium">
@@ -139,27 +91,22 @@ export default function SubscribePage() {
           </Link>
 
           <div className="flex items-center gap-3 mb-8 pb-8 border-b border-[#DDD9D3]">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#C44F6B] to-[#8B3A53] flex items-center justify-center text-white text-sm font-bold">
-              C
-            </div>
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#C44F6B] to-[#8B3A53] flex items-center justify-center text-white text-sm font-bold">C</div>
             <div>
               <div className="font-semibold text-sm">Demo Creator</div>
-              <div className="text-xs font-mono text-[#7C7570]">
-                {CREATOR_ADDRESS.slice(0, 14)}…{CREATOR_ADDRESS.slice(-6)}
-              </div>
+              <div className="text-xs font-mono text-[#7C7570]">{CREATOR_ADDRESS.slice(0,14)}…{CREATOR_ADDRESS.slice(-6)}</div>
             </div>
           </div>
 
           <h1 className="display text-4xl font-bold mb-2">Subscribe</h1>
           <p className="text-[#7C7570] text-sm mb-8">
-            Creates a Subscription Cell on CKB testnet. Cancel any time
-            with one transaction — owner mode in the type script.
+            Creates a real Subscription Cell on CKB testnet. Cancel any time with one transaction.
           </p>
 
           <div className="border border-[#DDD9D3] rounded bg-[#EFECE7] px-3 py-2 flex items-center gap-2 mb-6">
             <div className="w-1.5 h-1.5 rounded-full bg-[#2B6C50] shrink-0" />
             <span className="text-xs text-[#7C7570]">
-              Type script live on testnet ·{" "}
+              Type script live ·{" "}
               <a href={EXPLORER_TX(process.env.NEXT_PUBLIC_CADENCEPAY_TX_HASH ?? "")}
                 target="_blank" rel="noreferrer"
                 className="font-mono text-[#C44F6B] hover:underline">
@@ -171,15 +118,13 @@ export default function SubscribePage() {
           <div className="bg-white border border-[#DDD9D3] rounded divide-y divide-[#EFECE7] mb-7">
             {[
               ["Payment",    `${TIER.amountCKB} CKB every ${TIER.intervalDays} day`],
-              ["Interval",   `${Number(TIER.intervalBlocks).toLocaleString()} blocks`],
+              ["Interval",   "2,000 blocks"],
               ["Your funds", "Stay in your cells"],
               ["Cancel",     "Any time, no penalty"],
             ].map(([k, v]) => (
               <div key={k as string} className="flex justify-between items-center px-4 py-3">
                 <span className="text-xs text-[#7C7570]">{k}</span>
-                <span className={`text-xs font-medium ${["Your funds","Cancel"].includes(k as string) ? "text-[#2B6C50]" : ""}`}>
-                  {v}
-                </span>
+                <span className={`text-xs font-medium ${["Your funds","Cancel"].includes(k as string) ? "text-[#2B6C50]" : ""}`}>{v}</span>
               </div>
             ))}
           </div>
@@ -193,9 +138,7 @@ export default function SubscribePage() {
               <p className="text-xs text-[#7C7570] text-center">Email login · No wallet app needed</p>
             </>
           ) : !connection ? (
-            <div className="w-full border border-[#DDD9D3] py-3.5 rounded text-center text-sm text-[#7C7570] animate-pulse">
-              Recovering wallet…
-            </div>
+            <div className="w-full border border-[#DDD9D3] py-3.5 rounded text-center text-sm text-[#7C7570] animate-pulse">Recovering wallet…</div>
           ) : (
             <>
               <div className="border border-[#DDD9D3] bg-white rounded px-4 py-2.5 flex items-center gap-3 mb-4">
@@ -206,21 +149,14 @@ export default function SubscribePage() {
               </div>
 
               {step === "error" && (
-                <div className="border border-red-200 bg-red-50 rounded px-4 py-3 mb-4 text-xs text-red-600">
-                  {error}
-                </div>
+                <div className="border border-red-200 bg-red-50 rounded px-4 py-3 mb-4 text-xs text-red-600">{error}</div>
               )}
 
-              <button onClick={handleSubscribe}
-                disabled={step === "building" || step === "signing"}
+              <button onClick={handleSubscribe} disabled={step === "building"}
                 className="w-full bg-[#1C1814] hover:bg-[#C44F6B] disabled:bg-[#7C7570] transition text-white py-3.5 rounded font-semibold text-sm mb-3">
-                {step === "building" ? "Building transaction…" :
-                 step === "signing"  ? "Signing…" :
-                 `Subscribe · ${TIER.amountCKB} CKB / day`}
+                {step === "building" ? "Creating Subscription Cell…" : `Subscribe · ${TIER.amountCKB} CKB / day`}
               </button>
-              <p className="text-xs text-[#7C7570] text-center">
-                Builds a real Subscription Cell · CKB testnet
-              </p>
+              <p className="text-xs text-[#7C7570] text-center">Real transaction · CKB testnet</p>
             </>
           )}
         </div>

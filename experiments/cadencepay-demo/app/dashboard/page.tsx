@@ -1,70 +1,81 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
 import { useKeyWay } from "@ckb-keyway/react";
-import { checkFiberRoute } from "@/lib/fiberprobe";
 import { EXPLORER_TX } from "@/lib/cadencepay";
 
-const MOCK = [
-  {
-    id:           "0xabc",
-    creator:      "ckb1qzda0cr…3f8a",
-    creatorNodeId:"02abc123...",
-    amountCKB:    "5.00",
-    amountShannons: 500_000_000n,
-    intervalDays: 1,
-    last:         15_420_100n,
-    current:      15_421_800n,
-    interval:     2000n,
-  },
-  {
-    id:           "0xdef",
-    creator:      "ckb1qzyx9kl…7c2b",
-    creatorNodeId:"03def456...",
-    amountCKB:    "10.00",
-    amountShannons: 1_000_000_000n,
-    intervalDays: 7,
-    last:         15_418_000n,
-    current:      15_421_800n,
-    interval:     14000n,
-  },
-];
-
-function blocksLeft(last: bigint, int: bigint, cur: bigint): bigint {
-  const next = last + int;
-  return cur >= next ? 0n : next - cur;
+interface Subscription {
+  outPoint:          { txHash: string; index: string };
+  cellDataHex:       string;
+  recipientLockHash: string;
+  amountPerInterval: string;
+  intervalBlocks:    string;
+  lastClaimedBlock:  string;
+  currentBlock:      string;
+  canClaimNow:       boolean;
+  blocksRemaining:   string;
 }
 
 export default function Dashboard() {
   const { authenticated, connection, login } = useKeyWay();
-  const [routeStatus, setRouteStatus]   = useState<Record<string, string>>({});
-  const [claiming,    setClaiming]       = useState<Record<string, boolean>>({});
+  const [subs,     setSubs]     = useState<Subscription[]>([]);
+  const [loading,  setLoading]  = useState(false);
+  const [claiming, setClaiming] = useState<Record<string, boolean>>({});
+  const [claimTx,  setClaimTx]  = useState<Record<string, string>>({});
+  const [error,    setError]    = useState("");
 
-  const handleClaim = async (sub: typeof MOCK[0]) => {
-    // Step 1: check Fiber route first (fiberprobe)
-    setRouteStatus(s => ({ ...s, [sub.id]: "Checking route…" }));
-    const route = await checkFiberRoute(sub.creatorNodeId, sub.amountShannons);
-
-    if (!route.canPay) {
-      setRouteStatus(s => ({ ...s, [sub.id]: `✗ ${route.message}` }));
-      return;
+  const fetchSubs = useCallback(async () => {
+    
+    setLoading(true);
+    try {
+      const res  = await fetch('/api/subscriptions');
+      const data = await res.json() as { subscriptions: Subscription[]; error?: string };
+      if (data.error) throw new Error(data.error);
+      setSubs(data.subscriptions ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load");
+    } finally {
+      setLoading(false);
     }
+  }, []);
 
-    setRouteStatus(s => ({ ...s, [sub.id]: `✓ ${route.message}` }));
-    setClaiming(c => ({ ...c, [sub.id]: true }));
+  useEffect(() => {
+    void fetchSubs();
+  }, [fetchSubs]);
+
+  const handleClaim = async (sub: Subscription) => {
+    
+    const key = sub.outPoint.txHash;
+    setClaiming(c => ({ ...c, [key]: true }));
 
     try {
-      // Build claim transaction (real implementation in W10)
-      // For now: show what would happen
-      await new Promise(r => setTimeout(r, 1500));
-      setRouteStatus(s => ({ ...s, [sub.id]: "✓ Claim submitted" }));
-    } catch {
-      setRouteStatus(s => ({ ...s, [sub.id]: "✗ Claim failed" }));
+      const res  = await fetch("/api/claim", {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          outPoint:         sub.outPoint,
+          cellDataHex:      sub.cellDataHex,
+          subscriberAddress: connection?.wallet.ckbAddress ?? '',
+        }),
+      });
+      const data = await res.json() as { success: boolean; txHash?: string; error?: string };
+      if (!data.success) throw new Error(data.error);
+      setClaimTx(t => ({ ...t, [key]: data.txHash ?? "" }));
+      // Refresh after 3 seconds
+      setTimeout(() => void fetchSubs(), 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Claim failed");
     } finally {
-      setClaiming(c => ({ ...c, [sub.id]: false }));
+      setClaiming(c => ({ ...c, [key]: false }));
     }
   };
+
+  const amountCKB = (shannons: string) =>
+    (Number(shannons) / 1e8).toFixed(2);
+
+  const intervalDays = (blocks: string) =>
+    Math.round(Number(blocks) / 2000);
 
   return (
     <>
@@ -75,27 +86,37 @@ export default function Dashboard() {
             ← Back
           </Link>
 
-          <div className="flex items-baseline justify-between mb-10">
+          <div className="flex items-baseline justify-between mb-6">
             <h1 className="display text-4xl font-bold">Dashboard</h1>
             {connection && (
               <span className="text-xs font-mono text-[#7C7570]">
-                {connection.wallet.ckbAddress.slice(0,10)}…{connection.wallet.ckbAddress.slice(-4)}
+                {connection?.wallet.ckbAddress.slice(0,10)}…{connection?.wallet.ckbAddress.slice(-4)}
               </span>
             )}
           </div>
 
-          {/* Deployment info */}
+          {/* Live type script badge */}
           <div className="border border-[#DDD9D3] bg-[#EFECE7] rounded px-4 py-3 flex items-center gap-3 mb-8 text-xs">
             <div className="w-1.5 h-1.5 rounded-full bg-[#2B6C50] shrink-0" />
             <span className="text-[#7C7570]">
-              cadencepay type script live ·&nbsp;
+              cadencepay type script ·{" "}
               <a href={EXPLORER_TX(process.env.NEXT_PUBLIC_CADENCEPAY_TX_HASH ?? "")}
                 target="_blank" rel="noreferrer"
                 className="font-mono text-[#C44F6B] hover:underline">
                 0x44aff6…0307
               </a>
             </span>
+            <button onClick={() => void fetchSubs()}
+              className="ml-auto text-[#7C7570] hover:text-[#1C1814] transition">
+              ↻ Refresh
+            </button>
           </div>
+
+          {error && (
+            <div className="border border-red-200 bg-red-50 rounded px-4 py-3 mb-6 text-xs text-red-600">
+              {error}
+            </div>
+          )}
 
           {!authenticated ? (
             <div className="border border-[#DDD9D3] rounded p-12 text-center bg-white">
@@ -105,7 +126,7 @@ export default function Dashboard() {
                 Connect with Email
               </button>
             </div>
-          ) : !connection ? (
+          ) : loading ? (
             <div className="space-y-4">
               {[1,2].map(i => (
                 <div key={i} className="border border-[#DDD9D3] rounded p-6 bg-white animate-pulse">
@@ -114,31 +135,42 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
+          ) : subs.length === 0 ? (
+            <div className="border border-[#DDD9D3] rounded p-12 text-center bg-white">
+              <p className="text-[#7C7570] text-sm mb-6">No Subscription Cells found for this address.</p>
+              <Link href="/subscribe"
+                className="inline-block bg-[#1C1814] hover:bg-[#C44F6B] transition text-white px-6 py-2.5 rounded text-sm font-medium">
+                Create a Subscription
+              </Link>
+            </div>
           ) : (
             <div className="space-y-4">
-              {MOCK.map(s => {
-                const remaining = blocksLeft(s.last, s.interval, s.current);
-                const claimable = remaining === 0n;
+              {subs.map(s => {
+                const key       = s.outPoint.txHash;
                 const progress  = Math.min(100, Math.round(
-                  Number(s.current - s.last) / Number(s.interval) * 100
+                  (Number(s.currentBlock) - Number(s.lastClaimedBlock)) /
+                  Number(s.intervalBlocks) * 100
                 ));
-                const status = routeStatus[s.id];
 
                 return (
-                  <div key={s.id} className="border border-[#DDD9D3] rounded bg-white hover:border-[#C44F6B]/40 transition">
+                  <div key={key} className="border border-[#DDD9D3] rounded bg-white hover:border-[#C44F6B]/40 transition">
                     <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[#EFECE7]">
                       <div>
-                        <div className="text-xs font-mono text-[#7C7570] mb-1">{s.creator}</div>
+                        <div className="text-xs font-mono text-[#7C7570] mb-1">
+                          {s.outPoint.txHash.slice(0,14)}…{s.outPoint.txHash.slice(-6)}
+                          <a href={EXPLORER_TX(s.outPoint.txHash)} target="_blank" rel="noreferrer"
+                            className="ml-2 text-[#C44F6B] hover:underline">↗</a>
+                        </div>
                         <div className="font-semibold text-sm">
-                          {s.amountCKB} CKB / {s.intervalDays} day{s.intervalDays !== 1 ? "s" : ""}
+                          {amountCKB(s.amountPerInterval)} CKB / {intervalDays(s.intervalBlocks)} day
                         </div>
                       </div>
                       <span className={`text-xs px-2.5 py-1 rounded-full border font-medium ${
-                        claimable
+                        s.canClaimNow
                           ? "bg-[#F9ECF0] text-[#C44F6B] border-[#C44F6B]/20"
                           : "bg-[#EFECE7] text-[#7C7570] border-[#DDD9D3]"
                       }`}>
-                        {claimable ? "Claimable" : "Active"}
+                        {s.canClaimNow ? "Claimable" : "Active"}
                       </span>
                     </div>
 
@@ -155,9 +187,9 @@ export default function Dashboard() {
 
                     <div className="grid grid-cols-3 divide-x divide-[#EFECE7] border-b border-[#EFECE7]">
                       {[
-                        ["Last claim",  `Block ${s.last.toLocaleString()}`],
-                        ["Current",     s.current.toLocaleString()],
-                        ["Next claim",  claimable ? "Now" : `${remaining.toLocaleString()} blocks`],
+                        ["Last claim",  `Block ${Number(s.lastClaimedBlock).toLocaleString()}`],
+                        ["Current",     Number(s.currentBlock).toLocaleString()],
+                        ["Next claim",  s.canClaimNow ? "Now" : `${Number(s.blocksRemaining).toLocaleString()} blocks`],
                       ].map(([l, v]) => (
                         <div key={l as string} className="px-5 py-3">
                           <div className="text-xs text-[#7C7570] mb-1">{l}</div>
@@ -166,28 +198,27 @@ export default function Dashboard() {
                       ))}
                     </div>
 
-                    {status && (
-                      <div className={`px-5 py-2 text-xs border-b border-[#EFECE7] ${
-                        status.startsWith("✓") ? "text-[#2B6C50]" :
-                        status.startsWith("✗") ? "text-red-500" :
-                        "text-[#7C7570] animate-pulse"
-                      }`}>
-                        fiberprobe: {status}
+                    {claimTx[key] && (
+                      <div className="px-5 py-2 bg-[#F9ECF0] border-b border-[#EFECE7] text-xs text-[#C44F6B]">
+                        ✓ Claimed ·{" "}
+                        <a href={EXPLORER_TX(claimTx[key])} target="_blank" rel="noreferrer"
+                          className="font-mono hover:underline">
+                          {claimTx[key].slice(0,16)}…
+                        </a>
                       </div>
                     )}
 
                     <div className="flex gap-2 p-4">
-                      <button
-                        onClick={() => handleClaim(s)}
-                        disabled={!claimable || claiming[s.id]}
+                      <button onClick={() => void handleClaim(s)}
+                        disabled={!s.canClaimNow || claiming[key]}
                         className={`flex-1 py-2 rounded text-xs font-semibold transition ${
-                          claimable && !claiming[s.id]
+                          s.canClaimNow && !claiming[key]
                             ? "bg-[#1C1814] hover:bg-[#C44F6B] text-white"
                             : "bg-[#EFECE7] text-[#7C7570] cursor-not-allowed"
                         }`}>
-                        {claiming[s.id] ? "Submitting…" :
-                         claimable ? "Trigger Claim" :
-                         `${remaining.toLocaleString()} blocks left`}
+                        {claiming[key] ? "Submitting claim…" :
+                         s.canClaimNow ? "Trigger Claim" :
+                         `${Number(s.blocksRemaining).toLocaleString()} blocks left`}
                       </button>
                       <button className="px-4 py-2 rounded text-xs border border-[#DDD9D3] hover:border-red-300 hover:text-red-500 transition">
                         Cancel
@@ -196,9 +227,6 @@ export default function Dashboard() {
                   </div>
                 );
               })}
-              <p className="text-xs text-[#7C7570] text-center pt-2">
-                Live cell queries via getSubscriptions() in W10
-              </p>
             </div>
           )}
         </div>
