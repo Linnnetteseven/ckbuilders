@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://cadencepay-demo.vercel.app"\;
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://cadencepay-demo.vercel.app";
 
     const subsRes  = await fetch(`${baseUrl}/api/subscriptions`);
     const subsData = await subsRes.json() as {
