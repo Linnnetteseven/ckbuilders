@@ -49,17 +49,17 @@ export default function Home() {
                 {
                   n: "1",
                   title: "Creator sets a tier",
-                  body: "Amount, interval in blocks, shareable link. One transaction deploys the subscription terms on CKB.",
+                  body: "Set your price and how often you want to be paid. Share your link.",
                 },
                 {
                   n: "2",
                   title: "Subscriber clicks and pays",
-                  body: "Email login via CKB KeyWay. One transaction creates a Subscription Cell — owned entirely by the subscriber.",
+                  body: "Log in with email, confirm the terms, done. No crypto wallet app needed.",
                 },
                 {
                   n: "3",
                   title: "Claims run automatically",
-                  body: "Anyone can trigger a claim when the interval elapses. The type script enforces the rules. Fiber settles instantly.",
+                  body: "Payments collect automatically on schedule. No chasing invoices, no payment processor delays.",
                 },
               ].map(({ n, title, body }) => (
                 <div key={n} className="py-8 sm:py-0 sm:px-10 first:pl-0 last:pr-0">
