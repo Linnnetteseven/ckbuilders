@@ -7,12 +7,12 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-geist", display: "sw
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono", display: "swap" });
 
 export const metadata: Metadata = {
-  title: { default: "CadencePay: memberships where your money stays yours", template: "%s · CadencePay" },
+  title: { default: "CadencePay: support your favourite creators, stay in control", template: "%s · CadencePay" },
   description:
     "Become a member of creators you love. Your money stays in your own wallet balance, creators collect one payment per period, and you can cancel any time. CKB testnet demo.",
   openGraph: {
     title: "CadencePay",
-    description: "Memberships where your money stays yours.",
+    description: "Support your favourite creators. Stay in control.",
     type: "website",
   },
 };

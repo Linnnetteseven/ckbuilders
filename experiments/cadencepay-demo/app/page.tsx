@@ -16,8 +16,9 @@ export default function Explore() {
         {/* Hero: giant thin headline over a collage of creator covers */}
         <section className="relative bg-blush">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-14 sm:pt-20 pb-16 sm:pb-24">
-            <h1 className="display-thin text-[clamp(3.2rem,10vw,8.5rem)] max-w-[12ch] relative z-10 rise">
-              Back the people who make things.
+            <h1 className="display-thin text-[clamp(3rem,9vw,7.5rem)] max-w-[14ch] relative z-10 rise">
+              Support your favourite creators.{" "}
+              <span className="block text-pink">Stay in control.</span>
             </h1>
             <div className="mt-8 grid lg:grid-cols-[minmax(0,26rem)_1fr] gap-10 lg:gap-14 items-end">
               <div className="relative z-10 rise min-w-0" style={{ animationDelay: "80ms" }}>
