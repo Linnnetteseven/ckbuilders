@@ -1,233 +1,456 @@
 /**
- * CadencePay SDK — v0.2.0
+ * CadencePay SDK — v0.3.0 (for type script v3)
  *
- * Cell-native subscription payment protocol on CKB.
- * Subscription agreements live on-chain as CKB cells.
- * Subscriber keeps custody of funds throughout. No vault.
+ * Cell-native subscription payments on CKB. The subscriber funds one
+ * Subscription Cell; anyone can claim at most `amount` per `interval`
+ * for the creator; the subscriber can cancel at any time.
+ *
+ * Builders return unsigned ccc.Transactions. Signing is always done by the
+ * party whose funds are spent: the subscriber (create, top-up, cancel) or
+ * the keeper paying the claim/close fee. The SDK never needs a private key.
  */
 
 import { ccc } from "@ckb-ccc/core";
 
-// ── Constants ────────────────────────────────────────────────
+// ── Deployments ──────────────────────────────────────────────
+
+export interface ScriptDeployment {
+  codeHash: ccc.Hex;
+  hashType: ccc.HashType;
+  cellDep: ccc.CellDepLike;
+}
+
+export interface CadencePayDeployment {
+  cadencepay: ScriptDeployment;
+  inputTypeProxyLock: ScriptDeployment;
+}
+
+export const TESTNET: CadencePayDeployment = {
+  cadencepay: {
+    codeHash: "0x7c271b62bc4b726f5997f3dbd221cfdbf31c944da19871dc1d8fc3bb75910419",
+    hashType: "data1",
+    cellDep: {
+      outPoint: { txHash: "0x8acdf7ed16e21ed29c3fc0c9f2067e8901e7ee8dce5a1b4c686e5c24c9eada8b", index: 0 },
+      depType: "code",
+    },
+  },
+  inputTypeProxyLock: {
+    codeHash: "0x5123908965c711b0ffd8aec642f1ede329649bda1ebdca6bd24124d3796f768a",
+    hashType: "data1",
+    cellDep: {
+      outPoint: { txHash: "0xb4f171c9c9caf7401f54a8e56225ae21d95032150a87a4678eac3f66a3137b93", index: 1 },
+      depType: "code",
+    },
+  },
+};
+
+// ── Constants (must match contracts/cadencepay/src/main.rs) ──
 
 export const SUBSCRIPTION_DATA_SIZE = 56;
-export const SUBSCRIPTION_CAPACITY  = 20000000000n; // 200 CKB in shannons
+export const SUBSCRIPTION_ARGS_SIZE = 64;
+export const MIN_INTERVAL_BLOCKS = 100n;
+export const MAX_CANCEL_FEE = 1_000_000n; // shannons, 0.01 CKB
+export const SHANNONS_PER_CKB = 100_000_000n;
 
-// ── Types ────────────────────────────────────────────────────
+export const ERROR_CODES: Record<number, string> = {
+  1: "InvalidArgs", 2: "InvalidDataSize", 3: "InvalidGroupShape", 4: "TypeIdInvalid",
+  5: "NoHeader", 6: "ClaimTooEarly", 7: "ScheduleNotAdvanced", 8: "FieldsChanged",
+  9: "LockChanged", 10: "CapacityMismatch", 11: "PayoutMissing", 12: "MultipleSubscriptions",
+  13: "SubscriberAuthMissing", 14: "RefundMissing", 15: "InvalidTerms", 16: "WrongLock",
+  17: "InsufficientCapacity", 18: "Overflow", 19: "BalanceSufficient", 20: "InvalidStart",
+  30: "Syscall",
+};
 
-export interface SubscriptionParams {
-  /** Recipient lock hash — who receives payment (0x-prefixed hex, 32 bytes) */
-  recipientLockHash: string;
-  /** Shannons per interval (1 CKB = 100_000_000 shannons) */
-  amountPerInterval: bigint;
-  /** Blocks between valid claims (~2000 blocks ≈ 1 day on CKB) */
+// ── Terms (cell data) ────────────────────────────────────────
+
+export interface SubscriptionTerms {
+  /** blake2b hash of the creator's lock script */
+  recipientLockHash: ccc.Hex;
+  /** shannons paid per claim */
+  amount: bigint;
+  /** blocks between claims (≥ 100) */
   intervalBlocks: bigint;
-  /** Subscriber lock hash — stored in type script args for cancel mode */
-  subscriberLockHash: string;
+  /** earliest block at which the next claim is valid */
+  nextClaimBlock: bigint;
 }
 
-export interface CadencePayConfig {
-  client: ccc.Client;
-  /** Code hash of deployed cadencepay binary */
-  typeScriptCodeHash: string;
-  typeScriptHashType: ccc.HashType;
-}
-
-// ── Encoding ─────────────────────────────────────────────────
-
-/**
- * Encode subscription params into 56-byte on-chain cell data.
- *
- * Layout (all integers little-endian u64):
- *   [0..32]  recipient_lock_hash
- *   [32..40] amount_per_interval
- *   [40..48] interval_blocks
- *   [48..56] last_claimed_block  (0 on creation)
- */
-export function encodeSubscriptionData(params: SubscriptionParams): Uint8Array {
-  const data = new Uint8Array(SUBSCRIPTION_DATA_SIZE);
-  const view = new DataView(data.buffer);
-
-  const recipientBytes = hexToBytes(params.recipientLockHash);
-  if (recipientBytes.length !== 32) {
-    throw new Error(`recipientLockHash must be 32 bytes, got ${recipientBytes.length}`);
+/** Encode terms into exactly 56 bytes (little-endian u64s). */
+export function encodeTerms(terms: SubscriptionTerms): ccc.Bytes {
+  const recipient = ccc.bytesFrom(terms.recipientLockHash);
+  if (recipient.length !== 32) {
+    throw new Error(`recipientLockHash must be 32 bytes, got ${recipient.length}`);
   }
-  data.set(recipientBytes, 0);
-
-  view.setBigUint64(32, params.amountPerInterval, true);
-  view.setBigUint64(40, params.intervalBlocks, true);
-  view.setBigUint64(48, 0n, true); // last_claimed_block = 0 on creation
-
-  return data;
+  return ccc.bytesConcat(
+    recipient,
+    ccc.numLeToBytes(terms.amount, 8),
+    ccc.numLeToBytes(terms.intervalBlocks, 8),
+    ccc.numLeToBytes(terms.nextClaimBlock, 8),
+  );
 }
 
-/**
- * Decode raw cell bytes into readable subscription fields.
- */
-export function decodeSubscriptionData(data: Uint8Array): {
-  recipientLockHash: string;
-  amountPerInterval: bigint;
-  intervalBlocks:    bigint;
-  lastClaimedBlock:  bigint;
-} {
-  if (data.length < SUBSCRIPTION_DATA_SIZE) {
-    throw new Error(`Expected ${SUBSCRIPTION_DATA_SIZE} bytes, got ${data.length}`);
+/** Decode cell data. Throws unless it is exactly 56 bytes, as the script requires. */
+export function decodeTerms(data: ccc.BytesLike): SubscriptionTerms {
+  const bytes = ccc.bytesFrom(data);
+  if (bytes.length !== SUBSCRIPTION_DATA_SIZE) {
+    throw new Error(`Expected ${SUBSCRIPTION_DATA_SIZE} bytes, got ${bytes.length}`);
   }
-  const view = new DataView(data.buffer, data.byteOffset);
   return {
-    recipientLockHash: bytesToHex(data.slice(0, 32)),
-    amountPerInterval: view.getBigUint64(32, true),
-    intervalBlocks:    view.getBigUint64(40, true),
-    lastClaimedBlock:  view.getBigUint64(48, true),
+    recipientLockHash: ccc.hexFrom(bytes.slice(0, 32)),
+    amount: ccc.numLeFromBytes(bytes.slice(32, 40)),
+    intervalBlocks: ccc.numLeFromBytes(bytes.slice(40, 48)),
+    nextClaimBlock: ccc.numLeFromBytes(bytes.slice(48, 56)),
   };
 }
 
-/**
- * Build output cell data for a claim transaction.
- * Identical to input except last_claimed_block = currentBlock.
- * The type script verifies this exact update.
- */
-export function encodeClaimOutputData(
-  inputData: Uint8Array,
-  currentBlock: bigint
-): Uint8Array {
-  const output = new Uint8Array(inputData);
-  new DataView(output.buffer).setBigUint64(48, currentBlock, true);
-  return output;
-}
-
-// ── Queries ──────────────────────────────────────────────────
-
-/**
- * Returns true if enough blocks have elapsed to trigger a claim.
- * Call before building a claim transaction to avoid wasted fees.
- */
-export function canClaim(
-  lastClaimedBlock: bigint,
-  intervalBlocks:   bigint,
-  currentBlock:     bigint
-): boolean {
-  return currentBlock >= lastClaimedBlock + intervalBlocks;
-}
-
-/**
- * Blocks remaining until next valid claim. Returns 0n if claimable now.
- */
-export function blocksUntilNextClaim(
-  lastClaimedBlock: bigint,
-  intervalBlocks:   bigint,
-  currentBlock:     bigint
-): bigint {
-  const next = lastClaimedBlock + intervalBlocks;
-  return currentBlock >= next ? 0n : next - currentBlock;
-}
-
-// ── SDK Class ────────────────────────────────────────────────
-
-export class CadencePay {
-  private client:             ccc.Client;
-  private typeScriptCodeHash: string;
-  private typeScriptHashType: ccc.HashType;
-
-  constructor(config: CadencePayConfig) {
-    this.client             = config.client;
-    this.typeScriptCodeHash = config.typeScriptCodeHash;
-    this.typeScriptHashType = config.typeScriptHashType;
+/** Same checks the script applies in create mode (except header and capacity). */
+export function validateTerms(terms: SubscriptionTerms): void {
+  if (terms.amount <= 0n) throw new Error("amount must be > 0");
+  if (terms.intervalBlocks < MIN_INTERVAL_BLOCKS) {
+    throw new Error(`intervalBlocks must be ≥ ${MIN_INTERVAL_BLOCKS}`);
   }
+  if (/^0x0{64}$/.test(terms.recipientLockHash)) throw new Error("recipient must be set");
+  if (terms.nextClaimBlock + terms.intervalBlocks > 0xffff_ffff_ffff_ffffn) {
+    throw new Error("schedule overflows u64");
+  }
+}
 
-  private buildTypeScript(subscriberLockHash: string): ccc.Script {
-    return new ccc.Script(
-      this.typeScriptCodeHash,
-      this.typeScriptHashType,
-      subscriberLockHash,
+// ── Scripts ──────────────────────────────────────────────────
+
+/** Type ID = blake2b(first CellInput ‖ output index as u64 LE) */
+export function typeIdFor(firstInput: ccc.CellInputLike, outputIndex: number): ccc.Hex {
+  return ccc.hashCkb(ccc.CellInput.from(firstInput).toBytes(), ccc.numLeToBytes(outputIndex, 8));
+}
+
+export function subscriptionTypeScript(
+  typeId: ccc.HexLike,
+  subscriberLockHash: ccc.HexLike,
+  deployment: CadencePayDeployment = TESTNET,
+): ccc.Script {
+  const args = ccc.bytesConcat(typeId, subscriberLockHash);
+  if (args.length !== SUBSCRIPTION_ARGS_SIZE) throw new Error("type args must be 64 bytes");
+  return ccc.Script.from({
+    codeHash: deployment.cadencepay.codeHash,
+    hashType: deployment.cadencepay.hashType,
+    args: ccc.hexFrom(args),
+  });
+}
+
+/** The Subscription Cell's lock: Input Type Proxy Lock over its own type hash. */
+export function proxyLockFor(typeScript: ccc.ScriptLike, deployment: CadencePayDeployment = TESTNET): ccc.Script {
+  return ccc.Script.from({
+    codeHash: deployment.inputTypeProxyLock.codeHash,
+    hashType: deployment.inputTypeProxyLock.hashType,
+    args: ccc.Script.from(typeScript).hash(),
+  });
+}
+
+export function subscriberLockHashOf(typeScript: ccc.ScriptLike): ccc.Hex {
+  const args = ccc.bytesFrom(ccc.Script.from(typeScript).args);
+  return ccc.hexFrom(args.slice(32, 64));
+}
+
+/** Occupied capacity of a v3 Subscription Cell in shannons (226 CKB). */
+export function subscriptionOccupiedCapacity(): bigint {
+  const dummyType = subscriptionTypeScript(new Uint8Array(32), new Uint8Array(32));
+  const cell = ccc.CellOutput.from({ capacity: 0, lock: proxyLockFor(dummyType), type: dummyType });
+  return BigInt(cell.occupiedSize + SUBSCRIPTION_DATA_SIZE) * SHANNONS_PER_CKB;
+}
+
+/** Smallest standalone payout cell for a recipient lock (8 bytes capacity + lock). */
+export function minPayoutCapacity(recipientLock: ccc.ScriptLike): bigint {
+  const out = ccc.CellOutput.from({ capacity: 0, lock: recipientLock });
+  return BigInt(out.occupiedSize) * SHANNONS_PER_CKB;
+}
+
+function addDeps(tx: ccc.Transaction, deployment: CadencePayDeployment, withLock: boolean) {
+  tx.addCellDeps(deployment.cadencepay.cellDep);
+  if (withLock) tx.addCellDeps(deployment.inputTypeProxyLock.cellDep);
+}
+
+export interface TipHeader {
+  hash: ccc.Hex;
+  number: bigint;
+}
+
+// ── Validated live subscriptions ─────────────────────────────
+
+export interface Subscription {
+  cell: ccc.Cell;
+  terms: SubscriptionTerms;
+  typeId: ccc.Hex;
+  subscriberLockHash: ccc.Hex;
+}
+
+/**
+ * Parse a live cell as a v3 subscription. Returns undefined for anything the
+ * script would never have accepted at creation (forged/legacy cells).
+ */
+export function parseSubscription(cell: ccc.Cell, deployment: CadencePayDeployment = TESTNET): Subscription | undefined {
+  const type = cell.cellOutput.type;
+  if (!type || type.codeHash !== deployment.cadencepay.codeHash || type.hashType !== deployment.cadencepay.hashType) {
+    return undefined;
+  }
+  const args = ccc.bytesFrom(type.args);
+  if (args.length !== SUBSCRIPTION_ARGS_SIZE) return undefined;
+  if (!cell.cellOutput.lock.eq(proxyLockFor(type, deployment))) return undefined;
+  let terms: SubscriptionTerms;
+  try {
+    terms = decodeTerms(cell.outputData);
+    validateTerms(terms);
+  } catch {
+    return undefined;
+  }
+  return {
+    cell,
+    terms,
+    typeId: ccc.hexFrom(args.slice(0, 32)),
+    subscriberLockHash: ccc.hexFrom(args.slice(32, 64)),
+  };
+}
+
+export type SubscriptionStatus = "active" | "due" | "low_balance" | "closable";
+
+export interface SubscriptionView extends Subscription {
+  status: SubscriptionStatus;
+  /** CKB above occupied capacity, in shannons */
+  balance: bigint;
+  /** whole periods still funded */
+  periodsRemaining: bigint;
+  blocksUntilNextClaim: bigint;
+}
+
+export function viewSubscription(sub: Subscription, tipNumber: bigint, lowBalancePeriods = 2n): SubscriptionView {
+  const balance = sub.cell.cellOutput.capacity - subscriptionOccupiedCapacity();
+  const periodsRemaining = balance > 0n ? balance / sub.terms.amount : 0n;
+  const blocksUntilNextClaim = sub.terms.nextClaimBlock > tipNumber ? sub.terms.nextClaimBlock - tipNumber : 0n;
+  let status: SubscriptionStatus;
+  if (periodsRemaining === 0n) status = "closable";
+  else if (blocksUntilNextClaim === 0n) status = "due";
+  else if (periodsRemaining < lowBalancePeriods) status = "low_balance";
+  else status = "active";
+  return { ...sub, status, balance, periodsRemaining, blocksUntilNextClaim };
+}
+
+/** All valid v3 subscriptions; filter by subscriber and/or recipient lock hash. */
+export async function findSubscriptions(
+  client: ccc.Client,
+  filter: { subscriberLockHash?: ccc.HexLike; recipientLockHash?: ccc.HexLike } = {},
+  deployment: CadencePayDeployment = TESTNET,
+): Promise<Subscription[]> {
+  const subscriber = filter.subscriberLockHash ? ccc.hexFrom(filter.subscriberLockHash) : undefined;
+  const recipient = filter.recipientLockHash ? ccc.hexFrom(filter.recipientLockHash) : undefined;
+  const found: Subscription[] = [];
+  for await (const cell of client.findCells(
+    {
+      script: { codeHash: deployment.cadencepay.codeHash, hashType: deployment.cadencepay.hashType, args: "0x" },
+      scriptType: "type",
+      scriptSearchMode: "prefix",
+      withData: true,
+    },
+  )) {
+    const sub = parseSubscription(cell, deployment);
+    if (!sub) continue;
+    if (subscriber && sub.subscriberLockHash !== subscriber) continue;
+    if (recipient && sub.terms.recipientLockHash !== recipient) continue;
+    found.push(sub);
+  }
+  return found;
+}
+
+// ── Transaction builders ─────────────────────────────────────
+
+export interface SubscribeParams {
+  /** Subscriber's signer — a JoyID signer in the browser, or SignerCkbScriptReadonly on a server */
+  subscriber: ccc.Signer;
+  recipientLock: ccc.ScriptLike;
+  amount: bigint;
+  intervalBlocks: bigint;
+  /** Periods to pre-fund in the cell (excluding the first one paid upfront) */
+  prefundPeriods: bigint;
+  tip: TipHeader;
+  /** Pay the first period to the creator inside this tx (default true, threat model #18) */
+  payFirstPeriod?: boolean;
+  feeRate?: ccc.NumLike;
+  deployment?: CadencePayDeployment;
+}
+
+export async function buildSubscribeTx(p: SubscribeParams): Promise<ccc.Transaction> {
+  const deployment = p.deployment ?? TESTNET;
+  const payFirst = p.payFirstPeriod ?? true;
+  const recipientLock = ccc.Script.from(p.recipientLock);
+  if (p.prefundPeriods < 1n) throw new Error("prefundPeriods must be ≥ 1");
+  if (p.amount < minPayoutCapacity(recipientLock)) {
+    throw new Error(
+      `amount ${p.amount} is below the smallest payout cell (${minPayoutCapacity(recipientLock)} shannons); ` +
+        "keepers could not claim it",
     );
   }
+  const terms: SubscriptionTerms = {
+    recipientLockHash: recipientLock.hash(),
+    amount: p.amount,
+    intervalBlocks: p.intervalBlocks,
+    nextClaimBlock: payFirst ? p.tip.number + p.intervalBlocks : p.tip.number,
+  };
+  validateTerms(terms);
 
-  /**
-   * createSubscription — builds a transaction that creates a Subscription Cell.
-   *
-   * The subscriber signs once. After confirmation, anyone can trigger claims
-   * when the interval elapses. Subscriber can cancel at any time.
-   *
-   * Transaction shape:
-   *   inputs[]:    subscriber's CKB cells (coin selection by CCC SDK)
-   *   outputs[0]:  Subscription Cell (owned by subscriber, type = cadencepay)
-   *   outputs[1]:  change (handled by CCC SDK)
-   */
-  async createSubscription(
-    signer: ccc.Signer,
-    params: Omit<SubscriptionParams, "subscriberLockHash">
-  ): Promise<ccc.Transaction> {
-    const address           = await signer.getRecommendedAddressObj();
-    const subscriberLock    = address.script;
-    const subscriberLockHash = subscriberLock.hash();
+  const { script: subscriberLock } = await p.subscriber.getRecommendedAddressObj();
+  const subscriberLockHash = subscriberLock.hash();
+  const capacity = subscriptionOccupiedCapacity() + p.amount * p.prefundPeriods;
 
-    const typeScript = this.buildTypeScript(subscriberLockHash);
-    const cellData   = encodeSubscriptionData({ ...params, subscriberLockHash });
+  // Type ID depends on the first input, so build with placeholder args first.
+  const placeholderType = subscriptionTypeScript(new Uint8Array(32), subscriberLockHash, deployment);
+  const tx = ccc.Transaction.from({
+    outputs: [{ capacity, lock: proxyLockFor(placeholderType, deployment), type: placeholderType }],
+    outputsData: [encodeTerms(terms)],
+    headerDeps: [p.tip.hash],
+  });
+  if (payFirst) tx.addOutput({ capacity: p.amount, lock: recipientLock }, "0x");
+  addDeps(tx, deployment, false);
 
-    const tx = ccc.Transaction.from({
-      outputs: [{
-        lock:     subscriberLock,
-        type:     typeScript,
-        capacity: SUBSCRIPTION_CAPACITY,
-      }],
-      outputsData: [ccc.bytesFrom(cellData)],
-    });
-
-    await tx.completeInputsByCapacity(signer);
-    await tx.completeFeeBy(signer);
-
-    return tx;
-  }
-
-  /**
-   * getSubscriptions — fetch all Subscription Cells for a subscriber.
-   * Queries the chain directly by type script hash. No database.
-   */
-  async getSubscriptions(subscriberLockHash: string): Promise<Array<{
-    outPoint:        ccc.OutPointLike;
-    subscription:    ReturnType<typeof decodeSubscriptionData>;
-    canClaimNow:     boolean;
-    blocksRemaining: bigint;
-  }>> {
-    const tipHex      = await this.client.getTip();
-    const currentBlock = BigInt(tipHex);
-    const typeScript  = this.buildTypeScript(subscriberLockHash);
-    const results     = [];
-
-    for await (const cell of this.client.findCells({
-      script:           typeScript,
-      scriptType:       "type",
-      scriptSearchMode: "exact",
-    })) {
-      const data = new Uint8Array(ccc.bytesFrom(cell.outputData ?? "0x"));
-      if (data.length < SUBSCRIPTION_DATA_SIZE) continue;
-
-      const subscription = decodeSubscriptionData(data);
-      results.push({
-        outPoint:        cell.outPoint,
-        subscription,
-        canClaimNow:     canClaim(subscription.lastClaimedBlock, subscription.intervalBlocks, currentBlock),
-        blocksRemaining: blocksUntilNextClaim(subscription.lastClaimedBlock, subscription.intervalBlocks, currentBlock),
-      });
-    }
-
-    return results;
-  }
+  await tx.completeInputsByCapacity(p.subscriber);
+  const typeScript = subscriptionTypeScript(typeIdFor(tx.inputs[0], 0), subscriberLockHash, deployment);
+  tx.outputs[0].type = typeScript;
+  tx.outputs[0].lock = proxyLockFor(typeScript, deployment);
+  // Change goes to a new output after ours, so the subscription stays at index 0
+  await tx.completeFeeBy(p.subscriber, p.feeRate);
+  return tx;
 }
 
-// ── Utilities ─────────────────────────────────────────────────
-
-export function hexToBytes(hex: string): Uint8Array {
-  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
-  if (clean.length % 2 !== 0) throw new Error(`Invalid hex length: ${clean.length}`);
-  const bytes = new Uint8Array(clean.length / 2);
-  for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
-  }
-  return bytes;
+export interface ClaimParams {
+  /** Add fee inputs/change via the payer's signer (default true). false = shape only. */
+  complete?: boolean;
+  subscription: Subscription;
+  recipientLock: ccc.ScriptLike;
+  tip: TipHeader;
+  /** Pays the fee from their own cells; must not be the recipient (fees would reduce the creator's net payout) */
+  keeper: ccc.Signer;
+  feeRate?: ccc.NumLike;
+  deployment?: CadencePayDeployment;
 }
 
-export function bytesToHex(bytes: Uint8Array): string {
-  return "0x" + Array.from(bytes).map(b => b.toString(16).padStart(2, "0")).join("");
+export async function buildClaimTx(p: ClaimParams): Promise<ccc.Transaction> {
+  const deployment = p.deployment ?? TESTNET;
+  const { cell, terms } = p.subscription;
+  const recipientLock = ccc.Script.from(p.recipientLock);
+  if (recipientLock.hash() !== terms.recipientLockHash) throw new Error("recipientLock does not match the subscription");
+  if (p.tip.number < terms.nextClaimBlock) {
+    throw new Error(`not due: ${terms.nextClaimBlock - p.tip.number} blocks remaining`);
+  }
+  const { script: keeperLock } = await p.keeper.getRecommendedAddressObj();
+  if (keeperLock.hash() === terms.recipientLockHash) {
+    throw new Error("keeper must not be the recipient: the fee would be taken from the payout");
+  }
+  if (cell.cellOutput.capacity - terms.amount < subscriptionOccupiedCapacity()) {
+    throw new Error("balance below one period: use buildCloseTx");
+  }
+
+  const tx = ccc.Transaction.from({
+    inputs: [{ previousOutput: cell.outPoint }],
+    outputs: [
+      { capacity: cell.cellOutput.capacity - terms.amount, lock: cell.cellOutput.lock, type: cell.cellOutput.type },
+      { capacity: terms.amount, lock: recipientLock },
+    ],
+    outputsData: [encodeTerms({ ...terms, nextClaimBlock: terms.nextClaimBlock + terms.intervalBlocks }), "0x"],
+    headerDeps: [p.tip.hash],
+  });
+  addDeps(tx, deployment, true);
+  if (p.complete ?? true) await tx.completeFeeBy(p.keeper, p.feeRate);
+  return tx;
+}
+
+export interface TopUpParams {
+  /** Add fee inputs/change via the payer's signer (default true). false = shape only. */
+  complete?: boolean;
+  subscription: Subscription;
+  subscriber: ccc.Signer;
+  addCapacity: bigint;
+  feeRate?: ccc.NumLike;
+  deployment?: CadencePayDeployment;
+}
+
+export async function buildTopUpTx(p: TopUpParams): Promise<ccc.Transaction> {
+  const deployment = p.deployment ?? TESTNET;
+  const { cell } = p.subscription;
+  if (p.addCapacity <= 0n) throw new Error("addCapacity must be > 0");
+  const tx = ccc.Transaction.from({
+    inputs: [{ previousOutput: cell.outPoint }],
+    outputs: [{ capacity: cell.cellOutput.capacity + p.addCapacity, lock: cell.cellOutput.lock, type: cell.cellOutput.type }],
+    outputsData: [cell.outputData],
+  });
+  addDeps(tx, deployment, true);
+  if (p.complete ?? true) {
+    await tx.completeInputsByCapacity(p.subscriber);
+    await tx.completeFeeBy(p.subscriber, p.feeRate);
+  }
+  return tx;
+}
+
+export interface CancelParams {
+  /** Add fee inputs/change via the payer's signer (default true). false = shape only. */
+  complete?: boolean;
+  subscription: Subscription;
+  subscriber: ccc.Signer;
+  feeRate?: ccc.NumLike;
+  deployment?: CadencePayDeployment;
+}
+
+/** Subscriber ends the subscription; everything comes back to their lock. */
+export async function buildCancelTx(p: CancelParams): Promise<ccc.Transaction> {
+  const deployment = p.deployment ?? TESTNET;
+  const { cell } = p.subscription;
+  const { script: subscriberLock } = await p.subscriber.getRecommendedAddressObj();
+  if (subscriberLock.hash() !== p.subscription.subscriberLockHash) {
+    throw new Error("signer is not this subscription's subscriber");
+  }
+  const tx = ccc.Transaction.from({
+    inputs: [{ previousOutput: cell.outPoint }],
+    outputs: [{ capacity: cell.cellOutput.capacity, lock: subscriberLock }],
+    outputsData: ["0x"],
+  });
+  addDeps(tx, deployment, true);
+  // The script recognises the subscriber by an input carrying their lock
+  if (p.complete ?? true) {
+    await tx.completeInputsAtLeastOne(p.subscriber);
+    await tx.completeFeeBy(p.subscriber, p.feeRate);
+  }
+  return tx;
+}
+
+export interface CloseParams {
+  /** Add fee inputs/change via the payer's signer (default true). false = shape only. */
+  complete?: boolean;
+  subscription: Subscription;
+  subscriberLock: ccc.ScriptLike;
+  keeper: ccc.Signer;
+  feeRate?: ccc.NumLike;
+  deployment?: CadencePayDeployment;
+}
+
+/** Anyone ends a cell that can no longer fund a period; all CKB goes to the subscriber. */
+export async function buildCloseTx(p: CloseParams): Promise<ccc.Transaction> {
+  const deployment = p.deployment ?? TESTNET;
+  const { cell, terms } = p.subscription;
+  const subscriberLock = ccc.Script.from(p.subscriberLock);
+  if (subscriberLock.hash() !== p.subscription.subscriberLockHash) throw new Error("subscriberLock mismatch");
+  if (cell.cellOutput.capacity - subscriptionOccupiedCapacity() >= terms.amount) {
+    throw new Error("balance still covers a period: not closable");
+  }
+  const { script: keeperLock } = await p.keeper.getRecommendedAddressObj();
+  if (keeperLock.hash() === p.subscription.subscriberLockHash) {
+    throw new Error("the subscriber should cancel instead of close");
+  }
+  const tx = ccc.Transaction.from({
+    inputs: [{ previousOutput: cell.outPoint }],
+    outputs: [{ capacity: cell.cellOutput.capacity, lock: subscriberLock }],
+    outputsData: ["0x"],
+  });
+  addDeps(tx, deployment, true);
+  if (p.complete ?? true) await tx.completeFeeBy(p.keeper, p.feeRate);
+  return tx;
+}
+
+/** Human-readable reason for a CadencePay script failure message. */
+export function explainScriptError(message: string): string | undefined {
+  const m = /error code (-?\d+)/.exec(message);
+  return m ? ERROR_CODES[Number(m[1])] : undefined;
 }

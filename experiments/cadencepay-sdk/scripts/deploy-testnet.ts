@@ -1,6 +1,13 @@
 /**
  * CadencePay testnet deployment script
- * Usage: PRIVATE_KEY=0x... tsx deploy-testnet.ts
+ *
+ * Usage (keeps the key out of shell history):
+ *   read -rs PRIVATE_KEY && export PRIVATE_KEY
+ *   EXPECTED_CODE_HASH=0x... npx tsx scripts/deploy-testnet.ts
+ *   unset PRIVATE_KEY
+ *
+ * Refuses to send unless the local binary hashes to EXPECTED_CODE_HASH,
+ * so a stale or debug build can never be deployed by accident.
  */
 
 import { ccc } from "@ckb-ccc/core";
@@ -9,8 +16,9 @@ import { resolve } from "path";
 
 async function main() {
   const privateKey = process.env.PRIVATE_KEY;
-  if (!privateKey) {
-    console.error("Usage: PRIVATE_KEY=0x... tsx deploy-testnet.ts");
+  const expectedCodeHash = process.env.EXPECTED_CODE_HASH;
+  if (!privateKey || !expectedCodeHash) {
+    console.error("Usage: read -rs PRIVATE_KEY && export PRIVATE_KEY; EXPECTED_CODE_HASH=0x... npx tsx scripts/deploy-testnet.ts");
     process.exit(1);
   }
 
@@ -33,6 +41,10 @@ async function main() {
   // Used as code_hash in the type script, with hash_type "data1"
   const codeHash = ccc.hashCkb(binary);
   console.log("Code hash:", codeHash);
+  if (codeHash !== expectedCodeHash.toLowerCase()) {
+    console.error(`Refusing to deploy: binary hash ${codeHash} != EXPECTED_CODE_HASH ${expectedCodeHash}`);
+    process.exit(1);
+  }
 
   // Minimum capacity: binary length + 61 bytes overhead, in shannons
   const minCapacityShannons = BigInt(binary.length + 61) * 100_000_000n;
