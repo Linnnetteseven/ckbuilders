@@ -10,6 +10,8 @@ use std::str::FromStr;
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod cadencepay_v3;
 
 const TEST_ENV_VAR: &str = "MODE";
 
