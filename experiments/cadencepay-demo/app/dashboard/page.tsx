@@ -3,7 +3,9 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ccc } from "@ckb-ccc/core";
 import { Nav } from "@/components/Nav";
-import { Alert, Avatar, Footer, Receipt, Skeleton, btn } from "@/components/ui";
+import { Alert, Footer, Receipt, Skeleton, btn } from "@/components/ui";
+import { Avatar, Chip, Cover } from "@/components/Creator";
+import { IconRefresh } from "@/components/icons";
 import { useWallet } from "@/lib/useWallet";
 import { CREATORS, tierForSubscription, type Creator } from "@/lib/creators";
 import {
@@ -16,11 +18,11 @@ import {
 import { formatCkb, blocksToHuman, shortHash, EXPLORER_TX } from "@/lib/cadencepay";
 import { friendlyTxError } from "@/lib/txErrors";
 
-const STATUS: Record<SubscriptionView["status"], { label: string; cls: string }> = {
-  active:      { label: "Active",       cls: "bg-mint text-forest" },
-  due:         { label: "Payment due",  cls: "bg-surface text-ink" },
-  low_balance: { label: "Low balance",  cls: "bg-amber-50 text-amber-900" },
-  closable:    { label: "Out of funds", cls: "bg-red-50 text-red-800" },
+const STATUS: Record<SubscriptionView["status"], { label: string; tone: "green" | "pink" | "amber" }> = {
+  active:      { label: "Active",          tone: "green" },
+  due:         { label: "Payment due",     tone: "pink" },
+  low_balance: { label: "Running low",     tone: "amber" },
+  closable:    { label: "Out of payments", tone: "amber" },
 };
 
 type Row = SubscriptionView & { creator?: Creator };
@@ -70,8 +72,8 @@ export default function Memberships() {
       const txHash = await signer.sendTransaction(tx);
       setReceipts((r) => [{
         label: kind === "cancel"
-          ? `Cancelled, ${formatCkb(s.cell.cellOutput.capacity)} CKB returned`
-          : `Topped up ${formatCkb(s.terms.amount * 2n)} CKB`,
+          ? `Membership cancelled. ${formatCkb(s.cell.cellOutput.capacity)} CKB is back in your wallet`
+          : `Added ${formatCkb(s.terms.amount * 2n)} CKB to your ${s.creator?.name ?? ""} membership`,
         txHash,
       }, ...r]);
       for (const ms of [4000, 10000, 20000]) setTimeout(() => setRefresh((n) => n + 1), ms);
@@ -85,12 +87,12 @@ export default function Memberships() {
   return (
     <>
       <Nav />
-      <main id="main" className="pt-14 px-4 sm:px-6">
-        <div className="max-w-2xl mx-auto">
-          <div className="flex items-end justify-between gap-4 mt-10 mb-6">
-            <h1 className="display text-3xl sm:text-4xl font-bold">My memberships</h1>
+      <main id="main" className="pt-16 px-4 sm:px-6">
+        <div className="max-w-3xl mx-auto">
+          <div className="flex items-end justify-between gap-4 mt-12 mb-8">
+            <h1 className="display-thin text-5xl sm:text-6xl">Memberships</h1>
             {lock && (
-              <button onClick={() => { setLoaded(null); setRefresh((n) => n + 1); }} className={btn.quiet}>↻ Refresh</button>
+              <button onClick={() => { setLoaded(null); setRefresh((n) => n + 1); }} className={btn.quiet}><IconRefresh className="w-4 h-4" />Refresh</button>
             )}
           </div>
 
@@ -100,80 +102,81 @@ export default function Memberships() {
           </div>
 
           {!signer ? (
-            <div className="border border-border rounded-lg p-10 text-center bg-white">
-              <p className="text-muted text-sm mb-6">Connect your wallet to see the memberships you fund.</p>
-              <button onClick={() => void connect()} className={btn.primary}>Connect wallet</button>
+            <div className="rounded-3xl bg-blush px-6 py-14 text-center">
+              <h2 className="text-2xl font-semibold">See the creators you support</h2>
+              <p className="text-ink-2 mt-2 mb-7 max-w-md mx-auto">Connect your wallet to see your memberships, what&apos;s left in each, and when the next payment is.</p>
+              <button onClick={() => void connect()} className={btn.primaryLg}>Connect wallet</button>
             </div>
           ) : rows === null ? (
-            <div className="space-y-4" aria-busy="true"><Skeleton className="h-44" /><Skeleton className="h-44" /></div>
+            <div className="space-y-5" aria-busy="true"><Skeleton className="h-60" /><Skeleton className="h-60" /></div>
           ) : rows.length === 0 ? (
-            <div className="border border-border rounded-lg p-10 text-center bg-white">
-              <p className="text-muted text-sm mb-6">No memberships yet. A new one can take a few seconds to show up.</p>
-              <Link href="/" className={btn.primary}>Find a creator</Link>
+            <div className="rounded-3xl bg-blush px-6 py-14 text-center">
+              <h2 className="text-2xl font-semibold">No memberships yet</h2>
+              <p className="text-ink-2 mt-2 mb-7">Find a creator you love and join a tier. New memberships can take a few seconds to appear.</p>
+              <Link href="/" className={btn.primaryLg}>Explore creators</Link>
             </div>
           ) : (
-            <ul className="space-y-4">
+            <ul className="space-y-6">
               {rows.map((s) => {
                 const st = STATUS[s.status];
                 const k = keyOf(s);
                 const tier = s.creator && tierForSubscription(s.creator, s.terms.amount, s.terms.intervalBlocks);
                 return (
-                  <li key={k} className="border border-border rounded-lg bg-white overflow-hidden">
-                    <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-4">
-                      <div className="flex items-center gap-3 min-w-0">
-                        {s.creator ? <Avatar initials={s.creator.initials} hue={s.creator.hue} size="sm" /> : null}
-                        <div className="min-w-0">
-                          <div className="font-semibold truncate">
-                            {s.creator ? <Link href={`/c/${s.creator.slug}`} className="hover:text-rose">{s.creator.name}</Link> : "Unknown creator"}
-                            {tier ? <span className="text-muted font-normal"> · {tier.name}</span> : null}
-                          </div>
-                          <div className="text-xs text-muted tnum">{formatCkb(s.terms.amount)} CKB every {blocksToHuman(s.terms.intervalBlocks)}</div>
-                        </div>
+                  <li key={k} className="rounded-3xl border border-line overflow-hidden rise">
+                    {s.creator ? <Cover creator={s.creator} className="h-20" /> : <div className="h-20 bg-soft" />}
+                    <div className="px-5 sm:px-6 pb-6 -mt-8">
+                      <div className="flex items-end justify-between gap-3">
+                        {s.creator ? <Avatar creator={s.creator} size="lg" ring /> : <span />}
+                        <Chip tone={st.tone}>{st.label}</Chip>
                       </div>
-                      <span className={`text-xs px-2 py-1 rounded-md font-medium shrink-0 ${st.cls}`}>{st.label}</span>
-                    </div>
+                      <h2 className="mt-3 text-2xl font-semibold">
+                        {s.creator ? <Link href={`/c/${s.creator.slug}`} className="hover:text-pink">{s.creator.name}</Link> : "Unknown creator"}
+                      </h2>
+                      <p className="text-ink-2 tnum">{tier ? `${tier.name} · ` : ""}{formatCkb(s.terms.amount)} CKB every {blocksToHuman(s.terms.intervalBlocks).replace("~", "")}</p>
 
-                    <dl className="grid grid-cols-3 border-y border-border tnum">
-                      {[
-                        ["Balance", `${formatCkb(s.balance > 0n ? s.balance : 0n)} CKB`],
-                        ["Payments left", s.periodsRemaining.toString()],
-                        ["Next payment", s.blocksUntilNextClaim === 0n ? "Due now" : blocksToHuman(s.blocksUntilNextClaim)],
-                      ].map(([l, v], i) => (
-                        <div key={l} className={`px-3 sm:px-5 py-3 ${i > 0 ? "border-l border-border" : ""}`}>
-                          <dt className="text-xs text-muted mb-0.5">{l}</dt>
-                          <dd className="text-sm font-medium">{v}</dd>
+                      <dl className="mt-5 grid grid-cols-3 gap-2.5 tnum">
+                        {[
+                          ["Balance", `${formatCkb(s.balance > 0n ? s.balance : 0n)} CKB`],
+                          ["Payments left", s.periodsRemaining.toString()],
+                          ["Next payment", s.blocksUntilNextClaim === 0n ? "Due now" : `in ${blocksToHuman(s.blocksUntilNextClaim)}`],
+                        ].map(([l, v]) => (
+                          <div key={l} className="rounded-2xl bg-soft px-3 py-3">
+                            <dt className="text-xs text-ink-3">{l}</dt>
+                            <dd className="text-lg sm:text-xl font-semibold mt-0.5">{v}</dd>
+                          </div>
+                        ))}
+                      </dl>
+
+                      {(s.status === "low_balance" || s.status === "closable") && (
+                        <div className="mt-4">
+                          <Alert tone="warn">
+                            {s.status === "closable"
+                              ? "There isn't enough left for another payment. Top up to keep your membership, or cancel to get the rest back."
+                              : "Fewer than 2 payments left. Top up to keep your membership going."}
+                          </Alert>
                         </div>
-                      ))}
-                    </dl>
-
-                    {(s.status === "low_balance" || s.status === "closable") && (
-                      <p className="px-5 py-2.5 bg-amber-50 border-b border-amber-100 text-xs text-amber-900">
-                        {s.status === "closable"
-                          ? "There isn't enough left for another payment. Top up to continue, or cancel to get the rest back."
-                          : "Your balance covers fewer than 2 more payments. Top up to keep your membership."}
-                      </p>
-                    )}
-
-                    <div className="flex flex-wrap items-center gap-2 p-4">
-                      <button onClick={() => void act(s, "topup")} disabled={!!busy} className={`${btn.primary} py-2 text-xs flex-1 min-w-[9rem]`}>
-                        {busy === k ? "Confirm in your wallet…" : `Top up ${formatCkb(s.terms.amount * 2n)} CKB`}
-                      </button>
-                      {confirming === k ? (
-                        <>
-                          <button onClick={() => void act(s, "cancel")} disabled={!!busy}
-                            className="press text-xs font-semibold px-3 py-2 rounded-md bg-red-700 hover:bg-red-800 text-white">
-                            Yes, cancel and refund {formatCkb(s.cell.cellOutput.capacity)} CKB
-                          </button>
-                          <button onClick={() => setConfirming("")} className={btn.quiet}>Keep it</button>
-                        </>
-                      ) : (
-                        <button onClick={() => setConfirming(k)} disabled={!!busy} className={`${btn.secondary} py-2 text-xs`}>Cancel</button>
                       )}
+
+                      <div className="mt-5 flex flex-wrap items-center gap-2.5">
+                        <button onClick={() => void act(s, "topup")} disabled={!!busy} className={btn.primary}>
+                          {busy === k ? "Confirm in your wallet…" : `Top up ${formatCkb(s.terms.amount * 2n)} CKB`}
+                        </button>
+                        {confirming === k ? (
+                          <>
+                            <button onClick={() => void act(s, "cancel")} disabled={!!busy} className={btn.danger}>
+                              Yes, cancel and refund {formatCkb(s.cell.cellOutput.capacity)} CKB
+                            </button>
+                            <button onClick={() => setConfirming("")} className={btn.quiet}>Keep membership</button>
+                          </>
+                        ) : (
+                          <button onClick={() => setConfirming(k)} disabled={!!busy} className={btn.secondary}>Cancel membership</button>
+                        )}
+                      </div>
+                      <a href={EXPLORER_TX(s.cell.outPoint.txHash)} target="_blank" rel="noreferrer"
+                        className="inline-block mt-4 text-xs font-mono tnum text-ink-3 hover:text-pink">
+                        Latest receipt {shortHash(s.cell.outPoint.txHash)}
+                      </a>
                     </div>
-                    <a href={EXPLORER_TX(s.cell.outPoint.txHash)} target="_blank" rel="noreferrer"
-                      className="block px-5 pb-4 -mt-1 text-xs font-mono tnum text-muted hover:text-rose">
-                      cell {shortHash(s.cell.outPoint.txHash)} ↗
-                    </a>
                   </li>
                 );
               })}

@@ -1,28 +1,32 @@
 import type { Metadata, Viewport } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 
+const geist = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swap" });
+const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono", display: "swap" });
+
 export const metadata: Metadata = {
-  title: { default: "CadencePay: memberships on CKB", template: "%s · CadencePay" },
+  title: { default: "CadencePay: memberships where your money stays yours", template: "%s · CadencePay" },
   description:
-    "Support creators with on-chain memberships. You fund your own Subscription Cell; creators can take at most the agreed amount per period; cancel any time. CKB testnet demo.",
+    "Become a member of creators you love. Your money stays in your own wallet balance, creators collect one payment per period, and you can cancel any time. CKB testnet demo.",
   openGraph: {
-    title: "CadencePay: memberships on CKB",
-    description: "Creators get paid on schedule. You keep custody and can cancel any time.",
+    title: "CadencePay",
+    description: "Memberships where your money stays yours.",
     type: "website",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#F8F6F2",
+  themeColor: "#FFFFFF",
   width: "device-width",
   initialScale: 1,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className="bg-bg text-ink antialiased min-h-dvh">
+    <html lang="en" className={`${geist.variable} ${geistMono.variable}`}>
+      <body className="text-ink antialiased min-h-dvh">
         <a href="#main" className="skip-link">Skip to content</a>
         <Providers>{children}</Providers>
       </body>

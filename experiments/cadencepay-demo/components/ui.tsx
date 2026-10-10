@@ -1,67 +1,60 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { EXPLORER_TX, shortHash } from "@/lib/cadencepay";
+import { IconCheck, IconExternal } from "@/components/icons";
 
+/** Pill buttons (styles in globals.css). */
 export const btn = {
-  primary:
-    "press inline-flex items-center justify-center gap-2 rounded-md bg-ink text-white px-5 py-3 text-sm font-semibold hover:bg-rose disabled:bg-muted disabled:cursor-not-allowed",
-  secondary:
-    "press inline-flex items-center justify-center gap-2 rounded-md border border-border bg-white px-4 py-2.5 text-sm font-medium hover:border-ink disabled:opacity-50 disabled:cursor-not-allowed",
-  quiet:
-    "press inline-flex items-center gap-1 text-sm text-muted hover:text-ink",
+  primary: "pill",
+  primaryLg: "pill pill-lg",
+  primarySm: "pill pill-sm",
+  dark: "pill pill-dark",
+  darkSm: "pill pill-dark pill-sm",
+  secondary: "pill pill-outline",
+  secondarySm: "pill pill-outline pill-sm",
+  white: "pill pill-white pill-lg",
+  danger: "pill pill-danger pill-sm",
+  quiet: "inline-flex items-center gap-1.5 text-sm font-medium text-ink-2 hover:text-pink transition-colors",
 };
 
-export function Avatar({ initials, hue, size = "md" }: { initials: string; hue: string; size?: "sm" | "md" | "lg" }) {
-  const dims = { sm: "w-9 h-9 text-xs", md: "w-12 h-12 text-sm", lg: "w-20 h-20 text-xl" }[size];
-  return (
-    <div
-      aria-hidden
-      className={`${dims} rounded-2xl shrink-0 flex items-center justify-center font-semibold text-white`}
-      style={{ background: `linear-gradient(140deg, ${hue}, color-mix(in oklab, ${hue} 55%, #1C1814))` }}
-    >
-      {initials}
-    </div>
-  );
-}
-
 export function Alert({ tone = "error", children }: { tone?: "error" | "warn" | "ok"; children: ReactNode }) {
-  const cls = {
-    error: "border-red-200 bg-red-50 text-red-800",
-    warn: "border-amber-200 bg-amber-50 text-amber-900",
-    ok: "border-forest/20 bg-mint text-forest",
-  }[tone];
+  const cls = { error: "bg-[#FDECEC] text-[#8A1C14]", warn: "bg-sand text-amber", ok: "bg-mint text-forest" }[tone];
   return (
-    <div role={tone === "error" ? "alert" : "status"} className={`border rounded-md px-4 py-3 text-sm ${cls}`}>
+    <div role={tone === "error" ? "alert" : "status"} className={`rounded-2xl px-4 py-3 text-sm ${cls}`}>
       {children}
     </div>
   );
 }
 
 export function Skeleton({ className = "" }: { className?: string }) {
-  return <div aria-hidden className={`bg-surface rounded-md animate-pulse ${className}`} />;
+  return <div aria-hidden className={`bg-soft rounded-2xl animate-pulse ${className}`} />;
 }
 
-/** Receipt line shown after every subscribe, claim, top-up and cancel. */
+/** Receipt shown after joining, collecting, topping up and cancelling. */
 export function Receipt({ label, txHash }: { label: string; txHash: string }) {
   return (
-    <Alert tone="ok">
-      {label} ·{" "}
-      <a href={EXPLORER_TX(txHash)} target="_blank" rel="noreferrer" className="font-mono tnum underline break-all">
-        receipt {shortHash(txHash)}
+    <div role="status" className="rise flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-mint px-4 py-3">
+      <span className="flex items-center gap-2 text-sm font-medium text-forest">
+        <span className="grid place-items-center w-6 h-6 rounded-full bg-forest text-white"><IconCheck className="w-3.5 h-3.5" /></span>
+        {label}
+      </span>
+      <a href={EXPLORER_TX(txHash)} target="_blank" rel="noreferrer"
+        className="inline-flex items-center gap-1 text-xs font-mono tnum text-forest/80 hover:text-forest">
+        Receipt {shortHash(txHash, 6, 4)} <IconExternal className="w-3.5 h-3.5" />
       </a>
-    </Alert>
+    </div>
   );
 }
 
 export function Footer() {
   return (
-    <footer className="border-t border-border mt-24">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8 flex flex-wrap justify-between items-center gap-4 text-xs text-muted">
-        <span>CadencePay · CKB testnet demo · unaudited, not for real funds</span>
+    <footer className="mt-28 border-t border-line">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-wrap justify-between items-center gap-4 text-xs text-ink-3">
+        <span>CadencePay · test-network demo · not for real money</span>
         <nav aria-label="Footer" className="flex gap-5">
           <Link href="/how-it-works" className="hover:text-ink">How it works</Link>
-          <a href="https://github.com/Linnnetteseven/ckbuilders" target="_blank" rel="noreferrer" className="hover:text-ink">Source</a>
-          <a href="https://faucet.nervos.org" target="_blank" rel="noreferrer" className="hover:text-ink">Testnet faucet</a>
+          <a href="https://github.com/Linnnetteseven/ckbuilders" target="_blank" rel="noreferrer" className="hover:text-ink">Source code</a>
+          <a href="https://faucet.nervos.org" target="_blank" rel="noreferrer" className="hover:text-ink">Free test CKB</a>
         </nav>
       </div>
     </footer>

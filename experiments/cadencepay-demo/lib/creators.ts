@@ -37,7 +37,7 @@ export interface Creator {
   craft: string;
   bio: string;
   initials: string;
-  /** one hue per creator, used for the avatar block only */
+  /** cover banner colour */
   hue: string;
   payoutAddress: string;
   tiers: Tier[];
@@ -62,7 +62,7 @@ export const CREATORS: Creator[] = [
         name: "Supporter",
         amount: ckb(100),
         intervalBlocks: BLOCKS_PER_HOUR,
-        intervalLabel: "every ~1 hour (demo)",
+        intervalLabel: "every hour",
         prefundPeriods: 3n,
         perks: ["Full contact sheets", "Behind-the-frame notes"],
       },
@@ -71,7 +71,7 @@ export const CREATORS: Creator[] = [
         name: "Darkroom",
         amount: ckb(250),
         intervalBlocks: BLOCKS_PER_HOUR,
-        intervalLabel: "every ~1 hour (demo)",
+        intervalLabel: "every hour",
         prefundPeriods: 2n,
         perks: ["Everything in Supporter", "Monthly print vote", "Raw files of your favourite frame"],
       },
@@ -97,7 +97,7 @@ export const CREATORS: Creator[] = [
         name: "Learner",
         amount: ckb(80),
         intervalBlocks: BLOCKS_PER_HOUR,
-        intervalLabel: "every ~1 hour (demo)",
+        intervalLabel: "every hour",
         prefundPeriods: 3n,
         perks: ["Lesson code and slides", "Swahili transcripts"],
       },
@@ -113,7 +113,7 @@ export const CREATORS: Creator[] = [
     craft: "Gengetone and amapiano mixes",
     bio: "Mixes built for the Route 46 commute. Members get the full-length sets and the stems for remixing.",
     initials: "MS",
-    hue: "#8B6A2B",
+    hue: "#3A4BC4",
     payoutAddress:
       "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqftnd97fwa3yvlawpr0c5m2fgsrs49plygffl44q",
     tiers: [
@@ -122,7 +122,7 @@ export const CREATORS: Creator[] = [
         name: "Rider",
         amount: ckb(120),
         intervalBlocks: BLOCKS_PER_HOUR,
-        intervalLabel: "every ~1 hour (demo)",
+        intervalLabel: "every hour",
         prefundPeriods: 3n,
         perks: ["Full-length sets", "Track lists"],
       },
