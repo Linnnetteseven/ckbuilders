@@ -1,124 +1,83 @@
 import Link from "next/link";
 import { Nav } from "@/components/Nav";
+import { Avatar, Footer } from "@/components/ui";
+import { CREATORS } from "@/lib/creators";
+import { formatCkb } from "@/lib/cadencepay";
 
-export default function Home() {
+export default function Explore() {
   return (
     <>
       <Nav />
-      <main>
-        {/* Hero */}
-        <section className="pt-40 pb-32 px-6 border-b border-[#DDD9D3]">
+      <main id="main" className="pt-14">
+        <section className="px-4 sm:px-6 pt-16 sm:pt-24 pb-14 sm:pb-20">
           <div className="max-w-5xl mx-auto">
-            <div className="mb-10">
-              <span className="text-xs text-[#7C7570] border border-[#DDD9D3] bg-[#EFECE7] px-3 py-1 rounded-full">
-                Live on CKB Testnet
-              </span>
-            </div>
-
-            <h1 className="display text-[clamp(3rem,9vw,7rem)] font-black leading-[0.95] tracking-tight mb-8 max-w-3xl">
-              Subscribe to creators.<br />
-              <em className="not-italic text-[#C44F6B]">On your terms.</em>
+            <p className="text-xs text-muted mb-6 tnum">CKB testnet · demo creators · no real money</p>
+            <h1 className="display text-[clamp(2.6rem,8vw,5.75rem)] font-bold leading-[0.98] max-w-3xl mb-7">
+              Back the people who make things.<br />
+              <span className="text-rose">Keep your money where you can see it.</span>
             </h1>
-
-            <p className="text-[#7C7570] text-lg max-w-lg mb-10 leading-relaxed">
-              Every subscription is a CKB cell you own. No custodian,
-              no vault — cancel with one transaction. Payments enforce
-              themselves.
+            <p className="text-muted text-base sm:text-lg max-w-xl leading-relaxed">
+              Each membership is a small on-chain cell that you fund and control. The creator can take the agreed amount once per period, and nothing more. Leave whenever you like; the rest comes back to you.
             </p>
-
-            <div className="flex flex-wrap gap-3">
-              <Link href="/subscribe"
-                className="bg-[#1C1814] hover:bg-[#C44F6B] transition text-white px-7 py-3 rounded font-semibold text-sm">
-                Subscribe to a Creator
-              </Link>
-              <Link href="/creator"
-                className="border border-[#1C1814] hover:bg-[#1C1814] hover:text-white transition px-7 py-3 rounded font-semibold text-sm">
-                Set up a tier
-              </Link>
-            </div>
           </div>
         </section>
 
-        {/* How it works */}
-        <section className="py-24 px-6 border-b border-[#DDD9D3]">
+        <section aria-labelledby="creators" className="px-4 sm:px-6">
           <div className="max-w-5xl mx-auto">
-            <h2 className="display text-4xl font-bold mb-16">How it works</h2>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-[#DDD9D3]">
-              {[
-                {
-                  n: "1",
-                  title: "Creator sets a tier",
-                  body: "Set your price and how often you want to be paid. Share your link.",
-                },
-                {
-                  n: "2",
-                  title: "Subscriber clicks and pays",
-                  body: "Log in with email, confirm the terms, done. No crypto wallet app needed.",
-                },
-                {
-                  n: "3",
-                  title: "Claims run automatically",
-                  body: "Payments collect automatically on schedule. No chasing invoices, no payment processor delays.",
-                },
-              ].map(({ n, title, body }) => (
-                <div key={n} className="py-8 sm:py-0 sm:px-10 first:pl-0 last:pr-0">
-                  <div className="display text-[#C44F6B] text-5xl font-black mb-5 leading-none">{n}</div>
-                  <div className="font-semibold mb-3">{title}</div>
-                  <div className="text-sm text-[#7C7570] leading-relaxed">{body}</div>
-                </div>
-              ))}
+            <div className="flex items-baseline justify-between border-b border-ink pb-3 mb-2">
+              <h2 id="creators" className="text-sm font-semibold">Creators</h2>
+              <span className="text-xs text-muted tnum">{CREATORS.length} on testnet</span>
             </div>
+            <ul className="divide-y divide-border">
+              {CREATORS.map((c) => {
+                const from = c.tiers.reduce((m, t) => (t.amount < m ? t.amount : m), c.tiers[0].amount);
+                const locked = c.posts.filter((p) => p.tierId).length;
+                return (
+                  <li key={c.slug}>
+                    <Link href={`/c/${c.slug}`} className="group grid grid-cols-[auto_1fr] sm:grid-cols-[auto_1fr_auto] gap-x-4 gap-y-2 items-center py-6">
+                      <Avatar initials={c.initials} hue={c.hue} />
+                      <div className="min-w-0">
+                        <div className="display text-xl sm:text-2xl font-semibold group-hover:text-rose transition-colors">{c.name}</div>
+                        <div className="text-sm text-muted">{c.craft}</div>
+                      </div>
+                      <div className="col-start-2 sm:col-start-3 text-sm sm:text-right tnum">
+                        <span className="font-medium">from {formatCkb(from)} CKB</span>
+                        <span className="text-muted"> · {locked} member post{locked === 1 ? "" : "s"}</span>
+                      </div>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
           </div>
         </section>
 
-        {/* Properties */}
-        <section className="py-24 px-6 border-b border-[#DDD9D3]">
-          <div className="max-w-5xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-x-16 gap-y-12 items-start">
+        <section aria-labelledby="trust" className="px-4 sm:px-6 mt-20 sm:mt-28">
+          <div className="max-w-5xl mx-auto grid sm:grid-cols-[1fr_1.3fr] gap-10 sm:gap-16">
             <div>
-              <h2 className="display text-4xl font-bold mb-6">
-                The subscription IS the cell.
-              </h2>
-              <p className="text-[#7C7570] leading-relaxed">
-                Every other subscription protocol stores authorization
-                off-chain or locks your funds in a vault. CadencePay
-                puts the agreement on-chain as a first-class CKB asset —
-                verifiable by anyone, cancelable by you.
+              <h2 id="trust" className="display text-3xl sm:text-4xl font-bold mb-4">What a creator can and can&apos;t do</h2>
+              <p className="text-muted leading-relaxed">
+                Card subscriptions and token allowances let a merchant pull from your whole balance. Here, the rules live in a CKB type script that checks every payment.
               </p>
+              <Link href="/how-it-works" className="inline-block mt-5 text-sm underline underline-offset-4 hover:text-rose">How it works →</Link>
             </div>
-            <div className="divide-y divide-[#DDD9D3]">
+            <dl className="grid gap-px bg-border border border-border rounded-lg overflow-hidden">
               {[
-                { k: "On-chain state",    v: "Every subscription is a CKB cell. No database required." },
-                { k: "Self-custody",      v: "Funds stay in your cells. Nothing locked in a vault." },
-                { k: "Cancel any time",   v: "Owner mode in the type script. One transaction, no penalty." },
-                { k: "Fiber settlement",  v: "Claims route via Fiber Network. Instant, sub-cent fees." },
-              ].map(({ k, v }) => (
-                <div key={k} className="py-5">
-                  <div className="font-medium text-sm mb-1">{k}</div>
-                  <div className="text-sm text-[#7C7570]">{v}</div>
+                ["Can", "Take exactly the agreed amount, once per period, paid to their own address."],
+                ["Can't", "Take more, take it early, change the price, or touch any other coins in your wallet."],
+                ["You can", "Top up, cancel at any time and get the remaining balance back, or let it run out."],
+                ["Anyone can", "Trigger a payment that's due, so creators don't need a server holding their keys."],
+              ].map(([k, v]) => (
+                <div key={k} className="bg-white grid grid-cols-[5.5rem_1fr] gap-4 px-5 py-4">
+                  <dt className={`text-sm font-semibold ${k === "Can't" ? "text-rose" : ""}`}>{k}</dt>
+                  <dd className="text-sm text-muted">{v}</dd>
                 </div>
               ))}
-            </div>
+            </dl>
           </div>
         </section>
-
-        {/* Footer */}
-        <footer className="py-8 px-6">
-          <div className="max-w-5xl mx-auto flex flex-wrap justify-between items-center gap-4 text-xs text-[#7C7570]">
-            <span>CadencePay · CKBuilders 2026</span>
-            <div className="flex gap-6">
-              <a href="https://github.com/Linnnetteseven/ckbuilders"
-                target="_blank" rel="noreferrer" className="hover:text-[#1C1814] transition">
-                GitHub
-              </a>
-              <a href="https://docs.nervos.org"
-                target="_blank" rel="noreferrer" className="hover:text-[#1C1814] transition">
-                CKB Docs
-              </a>
-            </div>
-          </div>
-        </footer>
       </main>
+      <Footer />
     </>
   );
 }

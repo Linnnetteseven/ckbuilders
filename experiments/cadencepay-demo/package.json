@@ -6,11 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "sync-sdk": "(echo '// GENERATED COPY of experiments/cadencepay-sdk/src/index.ts \u2014 do not edit here.'; echo '// Update the SDK, then run `npm run sync-sdk` in this folder.'; cat ../cadencepay-sdk/src/index.ts) > lib/cadencepay-sdk.ts",
+    "check-sdk": "node -e \"const f=require('fs');const a=f.readFileSync('lib/cadencepay-sdk.ts','utf8').split('\\n').slice(2).join('\\n');const b=f.readFileSync('../cadencepay-sdk/src/index.ts','utf8');if(a!==b){console.error('lib/cadencepay-sdk.ts is out of date: npm run sync-sdk');process.exit(1)}console.log('SDK copy in sync')\""
   },
   "dependencies": {
-    "@ckb-ccc/ccc": "^1.3.4",
-    "@ckb-keyway/react": "^0.0.1",
+    "@ckb-ccc/connector-react": "^2.2.2",
+    "@ckb-ccc/core": "^1.23.0",
     "next": "16.3.5",
     "react": "19.2.8",
     "react-dom": "19.2.8"

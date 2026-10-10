@@ -1,236 +1,187 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { ccc } from "@ckb-ccc/core";
 import { Nav } from "@/components/Nav";
-import { useKeyWay } from "@ckb-keyway/react";
-import { EXPLORER_TX } from "@/lib/cadencepay";
+import { Alert, Avatar, Footer, Receipt, Skeleton, btn } from "@/components/ui";
+import { useWallet } from "@/lib/useWallet";
+import { CREATORS, tierForSubscription, type Creator } from "@/lib/creators";
+import {
+  findSubscriptions,
+  viewSubscription,
+  buildCancelTx,
+  buildTopUpTx,
+  type SubscriptionView,
+} from "@/lib/cadencepay-sdk";
+import { formatCkb, blocksToHuman, shortHash, EXPLORER_TX } from "@/lib/cadencepay";
+import { friendlyTxError } from "@/lib/txErrors";
 
-interface Subscription {
-  outPoint:          { txHash: string; index: string };
-  cellDataHex:       string;
-  recipientLockHash: string;
-  amountPerInterval: string;
-  intervalBlocks:    string;
-  lastClaimedBlock:  string;
-  currentBlock:      string;
-  canClaimNow:       boolean;
-  blocksRemaining:   string;
-}
+const STATUS: Record<SubscriptionView["status"], { label: string; cls: string }> = {
+  active:      { label: "Active",       cls: "bg-mint text-forest" },
+  due:         { label: "Payment due",  cls: "bg-surface text-ink" },
+  low_balance: { label: "Low balance",  cls: "bg-amber-50 text-amber-900" },
+  closable:    { label: "Out of funds", cls: "bg-red-50 text-red-800" },
+};
 
-export default function Dashboard() {
-  const { authenticated, connection, login } = useKeyWay();
-  const [subs,     setSubs]     = useState<Subscription[]>([]);
-  const [loading,  setLoading]  = useState(false);
-  const [claiming, setClaiming] = useState<Record<string, boolean>>({});
-  const [claimTx,  setClaimTx]  = useState<Record<string, string>>({});
-  const [error,    setError]    = useState("");
+type Row = SubscriptionView & { creator?: Creator };
+const keyOf = (s: SubscriptionView) => `${s.cell.outPoint.txHash}:${s.cell.outPoint.index}`;
 
-  const fetchSubs = useCallback(async () => {
-    
-    setLoading(true);
-    try {
-      const res  = await fetch('/api/subscriptions');
-      const data = await res.json() as { subscriptions: Subscription[]; error?: string };
-      if (data.error) throw new Error(data.error);
-      setSubs(data.subscriptions ?? []);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+export default function Memberships() {
+  const { signer, client, lock, connect } = useWallet();
+  const [loaded, setLoaded] = useState<{ owner: string; rows: Row[] } | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState("");
+  const [confirming, setConfirming] = useState("");
+  const [receipts, setReceipts] = useState<{ label: string; txHash: string }[]>([]);
+  const [refresh, setRefresh] = useState(0);
+
+  const owner = lock?.hash();
+  const rows = loaded && loaded.owner === owner ? loaded.rows : null;
 
   useEffect(() => {
-    void fetchSubs();
-  }, [fetchSubs]);
+    if (!lock) return;
+    const ownerHash = lock.hash();
+    let cancelled = false;
+    (async () => {
+      const [tip, subs, creatorLocks] = await Promise.all([
+        client.getTipHeader(),
+        findSubscriptions(client, { subscriberLockHash: ownerHash }),
+        Promise.all(CREATORS.map(async (c) => ({ c, h: (await ccc.Address.fromString(c.payoutAddress, client)).script.hash() }))),
+      ]);
+      return subs.map((s): Row => ({
+        ...viewSubscription(s, tip.number),
+        creator: creatorLocks.find((x) => x.h === s.terms.recipientLockHash)?.c,
+      }));
+    })()
+      .then((r) => { if (!cancelled) { setLoaded({ owner: ownerHash, rows: r }); setError(""); } })
+      .catch((e) => { if (!cancelled) { setError(friendlyTxError(e)); setLoaded({ owner: ownerHash, rows: [] }); } });
+    return () => { cancelled = true; };
+  }, [client, lock, refresh]);
 
-  const handleClaim = async (sub: Subscription) => {
-    
-    const key = sub.outPoint.txHash;
-    setClaiming(c => ({ ...c, [key]: true }));
-
+  const act = async (s: Row, kind: "cancel" | "topup") => {
+    if (!signer) return;
+    setBusy(keyOf(s));
+    setConfirming("");
+    setError("");
     try {
-      const res  = await fetch("/api/claim", {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          outPoint:         sub.outPoint,
-          cellDataHex:      sub.cellDataHex,
-          subscriberAddress: connection?.wallet.ckbAddress ?? '',
-        }),
-      });
-      const data = await res.json() as { success: boolean; txHash?: string; error?: string };
-      if (!data.success) throw new Error(data.error);
-      setClaimTx(t => ({ ...t, [key]: data.txHash ?? "" }));
-      // Refresh after 3 seconds
-      setTimeout(() => void fetchSubs(), 3000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Claim failed");
+      const tx = kind === "cancel"
+        ? await buildCancelTx({ subscription: s, subscriber: signer })
+        : await buildTopUpTx({ subscription: s, subscriber: signer, addCapacity: s.terms.amount * 2n });
+      const txHash = await signer.sendTransaction(tx);
+      setReceipts((r) => [{
+        label: kind === "cancel"
+          ? `Cancelled, ${formatCkb(s.cell.cellOutput.capacity)} CKB returned`
+          : `Topped up ${formatCkb(s.terms.amount * 2n)} CKB`,
+        txHash,
+      }, ...r]);
+      for (const ms of [4000, 10000, 20000]) setTimeout(() => setRefresh((n) => n + 1), ms);
+    } catch (e) {
+      setError(friendlyTxError(e));
     } finally {
-      setClaiming(c => ({ ...c, [key]: false }));
+      setBusy("");
     }
   };
-
-  const amountCKB = (shannons: string) =>
-    (Number(shannons) / 1e8).toFixed(2);
-
-  const intervalDays = (blocks: string) =>
-    Math.round(Number(blocks) / 2000);
 
   return (
     <>
       <Nav />
-      <main className="min-h-screen pt-24 pb-20 px-6">
+      <main id="main" className="pt-14 px-4 sm:px-6">
         <div className="max-w-2xl mx-auto">
-          <Link href="/" className="text-xs text-[#7C7570] hover:text-[#1C1814] transition mb-8 block">
-            ← Back
-          </Link>
-
-          <div className="flex items-baseline justify-between mb-6">
-            <h1 className="display text-4xl font-bold">Dashboard</h1>
-            {connection && (
-              <span className="text-xs font-mono text-[#7C7570]">
-                {connection?.wallet.ckbAddress.slice(0,10)}…{connection?.wallet.ckbAddress.slice(-4)}
-              </span>
+          <div className="flex items-end justify-between gap-4 mt-10 mb-6">
+            <h1 className="display text-3xl sm:text-4xl font-bold">My memberships</h1>
+            {lock && (
+              <button onClick={() => { setLoaded(null); setRefresh((n) => n + 1); }} className={btn.quiet}>↻ Refresh</button>
             )}
           </div>
 
-          {/* Live type script badge */}
-          <div className="border border-[#DDD9D3] bg-[#EFECE7] rounded px-4 py-3 flex items-center gap-3 mb-8 text-xs">
-            <div className="w-1.5 h-1.5 rounded-full bg-[#2B6C50] shrink-0" />
-            <span className="text-[#7C7570]">
-              cadencepay type script ·{" "}
-              <a href={EXPLORER_TX(process.env.NEXT_PUBLIC_CADENCEPAY_TX_HASH ?? "")}
-                target="_blank" rel="noreferrer"
-                className="font-mono text-[#C44F6B] hover:underline">
-                0x44aff6…0307
-              </a>
-            </span>
-            <button onClick={() => void fetchSubs()}
-              className="ml-auto text-[#7C7570] hover:text-[#1C1814] transition">
-              ↻ Refresh
-            </button>
+          <div className="space-y-3 mb-6">
+            {error && <Alert>{error}</Alert>}
+            {receipts.map((r) => <Receipt key={r.txHash} label={r.label} txHash={r.txHash} />)}
           </div>
 
-          {error && (
-            <div className="border border-red-200 bg-red-50 rounded px-4 py-3 mb-6 text-xs text-red-600">
-              {error}
+          {!signer ? (
+            <div className="border border-border rounded-lg p-10 text-center bg-white">
+              <p className="text-muted text-sm mb-6">Connect your wallet to see the memberships you fund.</p>
+              <button onClick={() => void connect()} className={btn.primary}>Connect wallet</button>
             </div>
-          )}
-
-          {!authenticated ? (
-            <div className="border border-[#DDD9D3] rounded p-12 text-center bg-white">
-              <p className="text-[#7C7570] text-sm mb-6">Connect to view your Subscription Cells</p>
-              <button onClick={login}
-                className="bg-[#1C1814] hover:bg-[#C44F6B] transition text-white px-6 py-2.5 rounded text-sm font-medium">
-                Connect with Email
-              </button>
-            </div>
-          ) : loading ? (
-            <div className="space-y-4">
-              {[1,2].map(i => (
-                <div key={i} className="border border-[#DDD9D3] rounded p-6 bg-white animate-pulse">
-                  <div className="h-4 bg-[#EFECE7] rounded w-1/3 mb-3" />
-                  <div className="h-6 bg-[#EFECE7] rounded w-1/2" />
-                </div>
-              ))}
-            </div>
-          ) : subs.length === 0 ? (
-            <div className="border border-[#DDD9D3] rounded p-12 text-center bg-white">
-              <p className="text-[#7C7570] text-sm mb-6">No Subscription Cells found for this address.</p>
-              <Link href="/subscribe"
-                className="inline-block bg-[#1C1814] hover:bg-[#C44F6B] transition text-white px-6 py-2.5 rounded text-sm font-medium">
-                Create a Subscription
-              </Link>
+          ) : rows === null ? (
+            <div className="space-y-4" aria-busy="true"><Skeleton className="h-44" /><Skeleton className="h-44" /></div>
+          ) : rows.length === 0 ? (
+            <div className="border border-border rounded-lg p-10 text-center bg-white">
+              <p className="text-muted text-sm mb-6">No memberships yet. A new one can take a few seconds to show up.</p>
+              <Link href="/" className={btn.primary}>Find a creator</Link>
             </div>
           ) : (
-            <div className="space-y-4">
-              {subs.map(s => {
-                const key       = s.outPoint.txHash;
-                const progress  = Math.min(100, Math.round(
-                  (Number(s.currentBlock) - Number(s.lastClaimedBlock)) /
-                  Number(s.intervalBlocks) * 100
-                ));
-
+            <ul className="space-y-4">
+              {rows.map((s) => {
+                const st = STATUS[s.status];
+                const k = keyOf(s);
+                const tier = s.creator && tierForSubscription(s.creator, s.terms.amount, s.terms.intervalBlocks);
                 return (
-                  <div key={key} className="border border-[#DDD9D3] rounded bg-white hover:border-[#C44F6B]/40 transition">
-                    <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-[#EFECE7]">
-                      <div>
-                        <div className="text-xs font-mono text-[#7C7570] mb-1">
-                          {s.outPoint.txHash.slice(0,14)}…{s.outPoint.txHash.slice(-6)}
-                          <a href={EXPLORER_TX(s.outPoint.txHash)} target="_blank" rel="noreferrer"
-                            className="ml-2 text-[#C44F6B] hover:underline">↗</a>
-                        </div>
-                        <div className="font-semibold text-sm">
-                          {amountCKB(s.amountPerInterval)} CKB / {intervalDays(s.intervalBlocks)} day
+                  <li key={k} className="border border-border rounded-lg bg-white overflow-hidden">
+                    <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-4">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {s.creator ? <Avatar initials={s.creator.initials} hue={s.creator.hue} size="sm" /> : null}
+                        <div className="min-w-0">
+                          <div className="font-semibold truncate">
+                            {s.creator ? <Link href={`/c/${s.creator.slug}`} className="hover:text-rose">{s.creator.name}</Link> : "Unknown creator"}
+                            {tier ? <span className="text-muted font-normal"> · {tier.name}</span> : null}
+                          </div>
+                          <div className="text-xs text-muted tnum">{formatCkb(s.terms.amount)} CKB every {blocksToHuman(s.terms.intervalBlocks)}</div>
                         </div>
                       </div>
-                      <span className={`text-xs px-2.5 py-1 rounded-full border font-medium ${
-                        s.canClaimNow
-                          ? "bg-[#F9ECF0] text-[#C44F6B] border-[#C44F6B]/20"
-                          : "bg-[#EFECE7] text-[#7C7570] border-[#DDD9D3]"
-                      }`}>
-                        {s.canClaimNow ? "Claimable" : "Active"}
-                      </span>
+                      <span className={`text-xs px-2 py-1 rounded-md font-medium shrink-0 ${st.cls}`}>{st.label}</span>
                     </div>
 
-                    <div className="px-5 py-4 border-b border-[#EFECE7]">
-                      <div className="flex justify-between text-xs text-[#7C7570] mb-2">
-                        <span>Progress to next claim</span>
-                        <span>{progress}%</span>
-                      </div>
-                      <div className="h-1.5 bg-[#EFECE7] rounded-full overflow-hidden">
-                        <div className="h-full bg-[#C44F6B] rounded-full transition-all"
-                          style={{ width: `${progress}%` }} />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 divide-x divide-[#EFECE7] border-b border-[#EFECE7]">
+                    <dl className="grid grid-cols-3 border-y border-border tnum">
                       {[
-                        ["Last claim",  `Block ${Number(s.lastClaimedBlock).toLocaleString()}`],
-                        ["Current",     Number(s.currentBlock).toLocaleString()],
-                        ["Next claim",  s.canClaimNow ? "Now" : `${Number(s.blocksRemaining).toLocaleString()} blocks`],
-                      ].map(([l, v]) => (
-                        <div key={l as string} className="px-5 py-3">
-                          <div className="text-xs text-[#7C7570] mb-1">{l}</div>
-                          <div className="text-xs font-mono font-medium">{v}</div>
+                        ["Balance", `${formatCkb(s.balance > 0n ? s.balance : 0n)} CKB`],
+                        ["Payments left", s.periodsRemaining.toString()],
+                        ["Next payment", s.blocksUntilNextClaim === 0n ? "Due now" : blocksToHuman(s.blocksUntilNextClaim)],
+                      ].map(([l, v], i) => (
+                        <div key={l} className={`px-3 sm:px-5 py-3 ${i > 0 ? "border-l border-border" : ""}`}>
+                          <dt className="text-xs text-muted mb-0.5">{l}</dt>
+                          <dd className="text-sm font-medium">{v}</dd>
                         </div>
                       ))}
-                    </div>
+                    </dl>
 
-                    {claimTx[key] && (
-                      <div className="px-5 py-2 bg-[#F9ECF0] border-b border-[#EFECE7] text-xs text-[#C44F6B]">
-                        ✓ Claimed ·{" "}
-                        <a href={EXPLORER_TX(claimTx[key])} target="_blank" rel="noreferrer"
-                          className="font-mono hover:underline">
-                          {claimTx[key].slice(0,16)}…
-                        </a>
-                      </div>
+                    {(s.status === "low_balance" || s.status === "closable") && (
+                      <p className="px-5 py-2.5 bg-amber-50 border-b border-amber-100 text-xs text-amber-900">
+                        {s.status === "closable"
+                          ? "There isn't enough left for another payment. Top up to continue, or cancel to get the rest back."
+                          : "Your balance covers fewer than 2 more payments. Top up to keep your membership."}
+                      </p>
                     )}
 
-                    <div className="flex gap-2 p-4">
-                      <button onClick={() => void handleClaim(s)}
-                        disabled={!s.canClaimNow || claiming[key]}
-                        className={`flex-1 py-2 rounded text-xs font-semibold transition ${
-                          s.canClaimNow && !claiming[key]
-                            ? "bg-[#1C1814] hover:bg-[#C44F6B] text-white"
-                            : "bg-[#EFECE7] text-[#7C7570] cursor-not-allowed"
-                        }`}>
-                        {claiming[key] ? "Submitting claim…" :
-                         s.canClaimNow ? "Trigger Claim" :
-                         `${Number(s.blocksRemaining).toLocaleString()} blocks left`}
+                    <div className="flex flex-wrap items-center gap-2 p-4">
+                      <button onClick={() => void act(s, "topup")} disabled={!!busy} className={`${btn.primary} py-2 text-xs flex-1 min-w-[9rem]`}>
+                        {busy === k ? "Confirm in your wallet…" : `Top up ${formatCkb(s.terms.amount * 2n)} CKB`}
                       </button>
-                      <button className="px-4 py-2 rounded text-xs border border-[#DDD9D3] hover:border-red-300 hover:text-red-500 transition">
-                        Cancel
-                      </button>
+                      {confirming === k ? (
+                        <>
+                          <button onClick={() => void act(s, "cancel")} disabled={!!busy}
+                            className="press text-xs font-semibold px-3 py-2 rounded-md bg-red-700 hover:bg-red-800 text-white">
+                            Yes, cancel and refund {formatCkb(s.cell.cellOutput.capacity)} CKB
+                          </button>
+                          <button onClick={() => setConfirming("")} className={btn.quiet}>Keep it</button>
+                        </>
+                      ) : (
+                        <button onClick={() => setConfirming(k)} disabled={!!busy} className={`${btn.secondary} py-2 text-xs`}>Cancel</button>
+                      )}
                     </div>
-                  </div>
+                    <a href={EXPLORER_TX(s.cell.outPoint.txHash)} target="_blank" rel="noreferrer"
+                      className="block px-5 pb-4 -mt-1 text-xs font-mono tnum text-muted hover:text-rose">
+                      cell {shortHash(s.cell.outPoint.txHash)} ↗
+                    </a>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           )}
         </div>
       </main>
+      <Footer />
     </>
   );
 }

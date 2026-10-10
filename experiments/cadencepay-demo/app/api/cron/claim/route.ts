@@ -1,56 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { claimAllDue } from "@/lib/keeper";
+import { CREATORS } from "@/lib/creators";
 
+// Vercel Cron (Hobby plan: once a day, see vercel.json). Vercel sends
+// `Authorization: Bearer $CRON_SECRET`. A missing secret must never match.
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret || req.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://cadencepay-demo.vercel.app";
-
-    const subsRes  = await fetch(`${baseUrl}/api/subscriptions`);
-    const subsData = await subsRes.json() as {
-      subscriptions: Array<{
-        outPoint:    { txHash: string; index: string };
-        cellDataHex: string;
-        canClaimNow: boolean;
-      }>;
-    };
-
-    const claimable = subsData.subscriptions.filter(s => s.canClaimNow);
-
-    if (claimable.length === 0) {
-      return NextResponse.json({ message: "No claims due", checked: subsData.subscriptions.length });
-    }
-
-    const results = await Promise.allSettled(
-      claimable.map(sub =>
-        fetch(`${baseUrl}/api/claim`, {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            outPoint:    sub.outPoint,
-            cellDataHex: sub.cellDataHex,
-          }),
-        }).then(r => r.json())
-      )
-    );
-
-    const succeeded = results.filter(r => r.status === "fulfilled").length;
-    const failed    = results.filter(r => r.status === "rejected").length;
-
+    const results = await claimAllDue(CREATORS.map((c) => c.payoutAddress));
     return NextResponse.json({
-      checked: subsData.subscriptions.length,
-      due:     claimable.length,
-      succeeded,
-      failed,
+      claimed: results.filter((r) => r.txHash).length,
+      failed: results.filter((r) => r.error).length,
+      results,
     });
-
-  } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 }
-    );
+  } catch (e) {
+    console.error("cron claim error", e);
+    return NextResponse.json({ error: "Keeper run failed" }, { status: 500 });
   }
 }

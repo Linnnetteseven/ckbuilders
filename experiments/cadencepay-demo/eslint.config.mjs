@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Local design skills (not app code, not committed)
+    ".claude/**",
   ]),
 ]);
 
