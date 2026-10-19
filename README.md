@@ -23,6 +23,7 @@ Progress log for the [CKBuilders program](https://nervoscatalyst.org/community-k
 | W9 | Sep 22 – Sep 27 | ✅ Complete | [View →](./reports/ckb_weekly_report_w9.md) |
 | W10 | Sep 28 – Oct 4 | ✅ Complete | [View →](./reports/ckb_weekly_report_w10.md) |
 | W11 | Oct 5 – Oct 11 | ✅ Complete | [View →](./reports/ckb_weekly_report_w11.md) |
+| W12 | Oct 12 – Oct 19 | ✅ Complete | [View →](./reports/ckb_weekly_report_w12.md) |
 
 
 ## Projects
