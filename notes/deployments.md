@@ -23,3 +23,20 @@ Explorer: https://pudge.explorer.nervos.org/transaction/0x8acdf7ed16e21ed29c3fc0
 | Cancel (JoyID) | `0x9692588768c99f29336459af77cf12e1d3d1fac16102117b52775d67bfe9f234` | 22,695,560 | ✅ cell consumed, full 526 CKB refunded to the subscriber's JoyID lock |
 
 **Result (2026-10-10):** every v3 mode except `close` has now run on testnet with a real JoyID wallet and a keyless keeper. `close` is covered by the script tests only.
+
+## Message in a Cell: capsule-lock (testnet)
+| Script | Code hash | Deploy tx (cellDep index 0) | Size | Date |
+|---|---|---|---|---|
+| capsule-lock v0.1 (`data1`) | `0x23d62274206d1204929fee3cb2514ab9945c2e1ab8d1fad6fef27ddc1af567be` | `0x8b4bd8a041ef7e337552e70f8cce73ed4beb0e648921b7f26bd0d474b39f8f4b` | 24,136 B | 2026-10-19 (block 22,794,626) |
+
+Verified on-chain 2026-10-19: committed, and output 0's blake2b hash equals the code hash. Reproducible build: `make build CLANG=clang-16 CUSTOM_RUSTFLAGS=""` in `experiments/time-lock-script`. Tests: `cargo test -p tests capsule_lock` (23 attack tests). The code cell is locked by the same deployer as CadencePay (`ckt1qzda…svgrrcn`). **Never spend it**, or the cellDep breaks.
+
+### Message in a Cell: live testnet e2e (2026-10-19, `scripts/e2e-testnet.ts`), all passed
+| Step | Tx | Result |
+|---|---|---|
+| Seal gift capsule as a link, opens in 2 min | `0xf9bdb62aad3bb8d1a7ee5f68000cd0c0a2db7fe5ad6f66384a8cfa8f5d0f4d8a` | ✅ 1,872 CKB capsule (letter + 1.5 KB photo + 100 CKB gift) plus a 61 CKB key cell |
+| Open early | (rejected) | ✅ Network refused: `Immature` (since not reached) |
+| Open with the gift key on time | `0x864b15bb8b365fbdf8822c58a4fdc54cf21e113119daa9e500ee986a32876e35` | ✅ All CKB to the chosen wallet; letter and photo decrypt from chain history |
+| Seal legacy capsule (2-min window) | `0x27404b881d65d931d7d1249e09696990f1d810c2f50618104447547d93ca3feb` | ✅ |
+| Owner check-in | `0xe374be19c15e70328d8cf9bfa6a7a58670ce81fdb17c66a7f2f714d14ef4a4a7` | ✅ Capsule re-created; the old link follows it |
+| Beneficiary opens after the window | `0x8e0096f48af270449ca079e32bd60b3f32d7ab34aa718bda50e9f3af01376212` | ✅ Letter decrypts |
