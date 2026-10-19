@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import Image from "next/image";
 import type { Creator } from "@/lib/creators";
 
 /** Crisp geometric motif per creator, drawn in tints of their colour. */
@@ -52,7 +53,12 @@ export function Cover({ creator, className = "" }: { creator: Creator; className
       className={`${className.includes("absolute") ? "" : "relative"} overflow-hidden ${className}`}
       style={{ background: `linear-gradient(135deg, ${creator.hue}, color-mix(in oklab, ${creator.hue} 62%, #181512))` } as CSSProperties}
     >
-      <Motif slug={creator.slug} />
+      {creator.image ? (
+        <Image src={creator.image.src} alt="" fill sizes="(min-width: 1024px) 60vw, 100vw"
+          className="object-cover" style={{ objectPosition: creator.image.cover }} />
+      ) : (
+        <Motif slug={creator.slug} />
+      )}
     </div>
   );
 }
@@ -65,7 +71,12 @@ export function Avatar({ creator, size = "md", ring = false }: { creator: Creato
       className={`${dims} relative z-10 rounded-full shrink-0 grid place-items-center font-semibold text-white ${ring ? "ring-4 ring-white shadow-[0_8px_24px_-10px_rgba(24,21,18,.5)]" : ""}`}
       style={{ background: `radial-gradient(circle at 30% 25%, color-mix(in oklab, ${creator.hue} 70%, #fff), ${creator.hue} 60%, color-mix(in oklab, ${creator.hue} 70%, #181512))` }}
     >
-      {creator.initials}
+      {creator.image ? (
+        <span className="absolute inset-0 rounded-full overflow-hidden">
+          <Image src={creator.image.src} alt="" fill sizes="128px" className="object-cover"
+            style={{ transformOrigin: creator.image.face, transform: `scale(${creator.image.zoom})` }} />
+        </span>
+      ) : creator.initials}
     </div>
   );
 }

@@ -7,6 +7,8 @@ import { Avatar, Cover } from "@/components/Creator";
 import { IconArrowRight, IconX } from "@/components/icons";
 import { useWallet } from "@/lib/useWallet";
 import { friendlyTxError } from "@/lib/txErrors";
+import { uploadMessage } from "@/lib/challenge";
+import { sha256Hex, toSquareWebp } from "@/lib/imageResize";
 import { formatCkb } from "@/lib/cadencepay";
 import {
   HUES, LIMITS, PERIODS, buildProfileTx, buildRemoveProfileTx, findMyProfile, profileDeposit, profileSlug, validateProfile,
@@ -18,11 +20,14 @@ const BLANK: ProfileData = {
   tiers: [{ name: "Supporter", ckb: 100, every: "week", perks: ["My thanks, and early access", ""] }],
 };
 
+/** Timestamp for the signed upload message (kept out of the component for the React compiler). */
+const issuedNow = () => Date.now();
+
 const field = "w-full rounded-2xl border border-line bg-white px-4 py-3 text-[15px] outline-none transition-colors focus:border-pink";
 const label = "block text-sm font-semibold mb-1.5";
 
 export default function Start() {
-  const { signer, client, lock, connect } = useWallet();
+  const { signer, client, lock, address, connect } = useWallet();
   const [mine, setMine] = useState<{ owner: string; profile: Profile | null } | null>(null);
   const [draft, setDraft] = useState<ProfileData>(BLANK);
   const [busy, setBusy] = useState<"" | "publish" | "remove">("");
@@ -30,6 +35,7 @@ export default function Start() {
   const [receipt, setReceipt] = useState<{ label: string; txHash: string } | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [refresh, setRefresh] = useState(0);
+  const [uploading, setUploading] = useState(false);
 
   const owner = lock?.hash();
   const existing = mine && mine.owner === owner ? mine.profile : undefined;
@@ -57,7 +63,30 @@ export default function Start() {
     slug: lock ? profileSlug(lock) : "preview", name: draft.name || "Your name", craft: draft.craft || "What you make",
     bio: draft.bio, initials: (draft.name.trim().split(" ").map((w) => w[0]).join("").slice(0, 2) || "YN").toUpperCase(),
     hue: draft.hue, payoutAddress: "", tiers: [], posts: [],
+    image: draft.img ? { src: draft.img, cover: "50% 40%", face: "50% 35%", zoom: 1.3 } : undefined,
   }), [draft, lock]);
+
+  // Shrink the photo here, have the wallet sign its fingerprint, then upload it
+  const chooseImage = async (file: File | undefined) => {
+    if (!file || !signer || !address) return;
+    setUploading(true); setError("");
+    try {
+      const webp = await toSquareWebp(file);
+      const issuedAt = issuedNow();
+      const signature = await signer.signMessage(uploadMessage(address, await sha256Hex(webp), issuedAt));
+      const form = new FormData();
+      form.set("file", webp, "image.webp");
+      form.set("address", address);
+      form.set("issuedAt", String(issuedAt));
+      form.set("signature", JSON.stringify(signature));
+      const res = await fetch("/api/upload", { method: "POST", body: form });
+      const d = (await res.json()) as { url?: string; error?: string };
+      if (!res.ok || !d.url) throw new Error(d.error ?? "Upload failed");
+      set({ img: d.url });
+    } catch (e) {
+      setError(e instanceof Error && e.message ? e.message : "We couldn't upload that image");
+    } finally { setUploading(false); }
+  };
 
   const set = (patch: Partial<ProfileData>) => setDraft((d) => ({ ...d, ...patch }));
   const setTier = (i: number, patch: Partial<ProfileTier>) => setDraft((d) => ({ ...d, tiers: d.tiers.map((t, k) => (k === i ? { ...t, ...patch } : t)) }));
@@ -136,6 +165,25 @@ export default function Start() {
                   <label htmlFor="bio" className={label}>About you <span className="font-normal text-ink-3">(optional)</span></label>
                   <textarea id="bio" rows={3} className={field} maxLength={LIMITS.bio} value={draft.bio} onChange={(e) => set({ bio: e.target.value })} placeholder="A sentence or two your members will see first." />
                 </div>
+                <fieldset>
+                  <legend className={label}>Display image <span className="font-normal text-ink-3">(optional)</span></legend>
+                  <div className="flex flex-wrap items-center gap-4">
+                    <Avatar creator={previewCreator} size="lg" />
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <label className={`${btn.secondarySm} ${uploading ? "pointer-events-none opacity-60" : ""}`}>
+                        {uploading ? "Check your wallet…" : draft.img ? "Change image" : "Choose an image"}
+                        <input type="file" accept="image/*" className="sr-only" disabled={uploading}
+                          onChange={(e) => { void chooseImage(e.target.files?.[0]); e.target.value = ""; }} />
+                      </label>
+                      {draft.img && !uploading && (
+                        <button type="button" onClick={() => setDraft((d) => { const rest = { ...d }; delete rest.img; return rest; })} className={btn.quiet}>
+                          <IconX className="w-4 h-4" />Remove
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <p className="mt-2 text-sm text-ink-3">Used for your banner and profile picture. We crop it to a square, shrink it, and remove location details before uploading.</p>
+                </fieldset>
                 <fieldset>
                   <legend className={label}>Page colour</legend>
                   <div className="flex gap-2.5">

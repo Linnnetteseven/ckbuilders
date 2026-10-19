@@ -39,6 +39,11 @@ export interface Creator {
   initials: string;
   /** cover banner colour */
   hue: string;
+  /**
+   * Photo for covers and avatars (in /public). `cover` is the object-position
+   * for wide banners; the avatar zooms in on `face` by `zoom`.
+   */
+  image?: { src: string; cover: string; face: string; zoom: number };
   payoutAddress: string;
   tiers: Tier[];
   posts: PostMeta[];
@@ -49,6 +54,7 @@ const ckb = (n: number) => BigInt(n) * SHANNONS_PER_CKB;
 export const CREATORS: Creator[] = [
   {
     slug: "wanjiru-frames",
+    image: { src: "/creators/wanjiru-frames.webp", cover: "50% 30%", face: "63% 24%", zoom: 2.6 },
     name: "Wanjiru Frames",
     craft: "Street photography from Nairobi",
     bio: "Long walks from River Road to Kibera with a 35mm. Members get the full contact sheets, the stories behind each frame, and a monthly print vote.",
@@ -84,6 +90,7 @@ export const CREATORS: Creator[] = [
   },
   {
     slug: "otieno-builds",
+    image: { src: "/creators/otieno-builds.webp", cover: "50% 30%", face: "49% 20%", zoom: 2.4 },
     name: "Otieno Builds",
     craft: "CKB tutorials in Swahili and English",
     bio: "Short, honest lessons on cells, scripts and CCC, recorded in Kisumu. Members get the code, the slides, and Friday office hours.",
@@ -119,6 +126,7 @@ export const CREATORS: Creator[] = [
   },
   {
     slug: "matatu-sound",
+    image: { src: "/creators/matatu-sound.webp", cover: "50% 50%", face: "45% 50%", zoom: 1.5 },
     name: "Matatu Sound",
     craft: "Gengetone and amapiano mixes",
     bio: "Mixes built for the Route 46 commute. Members get the full-length sets and the stems for remixing.",

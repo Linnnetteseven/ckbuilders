@@ -37,7 +37,10 @@ export type Period = keyof typeof PERIODS;
 export const LIMITS = { name: 40, craft: 60, bio: 240, tierName: 24, perk: 60, perks: 3, tiers: 3, minCkb: 70, maxCkb: 100_000 };
 
 export interface ProfileTier { name: string; ckb: number; every: Period; perks: string[] }
-export interface ProfileData { v: 1; name: string; craft: string; bio: string; hue: string; tiers: ProfileTier[] }
+export interface ProfileData { v: 1; name: string; craft: string; bio: string; hue: string; tiers: ProfileTier[]; img?: string }
+
+/** Display images must come from our Blob store (see /api/upload); anything else is ignored. */
+const IMG_RE = /^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\/creators\/([0-9a-f]{16})\/[0-9a-f]{16}\.webp$/;
 
 const text = (v: unknown, max: number, min = 1) => {
   if (typeof v !== "string") throw new Error("Expected text");
@@ -60,7 +63,8 @@ export function validateProfile(raw: unknown): ProfileData {
     const perks = Array.isArray(t?.perks) ? t.perks.filter((p) => typeof p === "string" && p.trim()).slice(0, LIMITS.perks).map((p) => text(p, LIMITS.perk)) : [];
     return { name: text(t?.name, LIMITS.tierName), ckb, every, perks };
   });
-  return { v: 1, name: text(d.name, LIMITS.name, 2), craft: text(d.craft, LIMITS.craft, 2), bio: text(d.bio, LIMITS.bio, 0), hue, tiers };
+  const img = typeof d.img === "string" && IMG_RE.test(d.img) ? d.img : undefined;
+  return { v: 1, name: text(d.name, LIMITS.name, 2), craft: text(d.craft, LIMITS.craft, 2), bio: text(d.bio, LIMITS.bio, 0), hue, tiers, ...(img ? { img } : {}) };
 }
 
 export const encodeProfile = (p: ProfileData) => ccc.bytesFrom(JSON.stringify(validateProfile(p)), "utf8");
@@ -88,6 +92,10 @@ function toCreator(data: ProfileData, lock: ccc.Script, client: ccc.Client): Cre
     bio: data.bio,
     initials: ((words[0]?.[0] ?? "") + (words[1]?.[0] ?? words[0]?.[1] ?? "")).toUpperCase(),
     hue: data.hue,
+    // Only an image uploaded from this same wallet's folder is shown
+    image: data.img && IMG_RE.exec(data.img)?.[1] === lock.hash().slice(2, 18)
+      ? { src: data.img, cover: "50% 40%", face: "50% 35%", zoom: 1.3 }
+      : undefined,
     // Payouts always go to the lock that owns the profile, so they can't be redirected
     payoutAddress: ccc.Address.fromScript(lock, client).toString(),
     tiers,

@@ -4,6 +4,8 @@ import type { NextConfig } from "next";
 // Fiber node, and `Cross-Origin-Opener-Policy: same-origin` breaks the
 // JoyID signing popup.
 const nextConfig: NextConfig = {
+  // Creator display images uploaded through /api/upload
+  images: { remotePatterns: [{ protocol: "https", hostname: "*.public.blob.vercel-storage.com", pathname: "/creators/**" }] },
   async redirects() {
     // The demo moved under /app when / became the landing page; keep old links working
     return [

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Creator, Tier } from "@/lib/creators";
 import { formatCkb } from "@/lib/cadencepay";
+import { Avatar } from "@/components/Creator";
 
 /**
  * Bars drawn from a hex string (the CadencePay code hash by default), so the
@@ -36,7 +37,7 @@ export function Ticket({ creator, tier, code, className = "", style }: {
       <div className="rounded-t-[1.4rem] bg-white px-5 pt-5 pb-6">
         <div className="flex items-center justify-between gap-3">
           <span className="text-[13px] font-medium text-ink-2">{creator.name}</span>
-          <span aria-hidden className="w-2.5 h-2.5 rounded-full" style={{ background: creator.hue }} />
+          <Avatar creator={creator} size="sm" />
         </div>
         <div className="mt-2 font-serif italic text-[2.6rem] leading-none">{tier.name}</div>
         <ul className="mt-4 space-y-1.5 text-[13.5px] leading-snug text-ink-2">

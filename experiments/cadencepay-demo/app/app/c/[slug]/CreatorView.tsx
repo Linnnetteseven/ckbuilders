@@ -111,7 +111,8 @@ export function CreatorView({ slug, creator: given }: { slug: string; creator?: 
     const locked = tierId !== null && !creator.posts.some((p) => p.tierId === tierId && bodies[p.id] !== undefined);
     return (
       <div className={`relative rounded-2xl overflow-hidden ${className}`}>
-        <Cover creator={creator} className="absolute inset-0" />
+        {/* Locked posts show a blurred preview until a member unlocks them */}
+        <Cover creator={creator} className={`absolute inset-0 transition-[filter] duration-500 ${locked ? "blur-md scale-110" : ""}`} />
         {locked ? (
           <span className="absolute left-3 bottom-3 inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-black/45 backdrop-blur px-2.5 py-1 rounded-full">
             <IconLock className="w-3.5 h-3.5" />Locked
