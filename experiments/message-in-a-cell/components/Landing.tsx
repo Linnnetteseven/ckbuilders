@@ -29,8 +29,8 @@ function Nav() {
   return (
     <header className="absolute top-0 inset-x-0 z-20">
       <nav aria-label="Main" className="max-w-6xl mx-auto px-4 sm:px-6 pt-4">
-        <div className="card flex items-center justify-between gap-3 !rounded-full px-4 py-2">
-          <Link href="/" className="slab text-lg">Message <span className="hand text-tomato text-2xl">in a</span> Cell</Link>
+        <div className="card flex items-center justify-between gap-2 sm:gap-3 !rounded-full px-3 sm:px-4 py-2">
+          <Link href="/" className="slab text-sm min-[380px]:text-base sm:text-lg whitespace-nowrap flex items-center gap-1.5 sm:gap-2"><img src="/logo.png" alt="" width={28} height={28} className="w-6 h-6 sm:w-7 sm:h-7 shrink-0" /><span>Message <span className="hand text-tomato text-lg min-[380px]:text-xl sm:text-2xl">in a</span> Cell</span></Link>
           <div className="flex items-center gap-4 label">
             <a href="#how" className="hidden sm:inline hover:text-tomato">How it works</a>
             <Link href="/mine" className="hidden sm:inline hover:text-tomato">My capsules</Link>

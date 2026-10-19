@@ -6,8 +6,8 @@ export function AppNav() {
   return (
     <header className="sticky top-0 z-30 pt-3 px-4 sm:px-6 bg-gradient-to-b from-paper from-60% to-transparent pb-3">
       <nav aria-label="Main" className="max-w-6xl mx-auto">
-        <div className="card flex items-center justify-between gap-3 !rounded-full px-4 py-2">
-          <Link href="/" className="slab text-base sm:text-lg whitespace-nowrap">Message <span className="hand text-tomato text-xl sm:text-2xl">in a</span> Cell</Link>
+        <div className="card flex items-center justify-between gap-2 sm:gap-3 !rounded-full px-3 sm:px-4 py-2">
+          <Link href="/" className="slab text-sm min-[380px]:text-base sm:text-lg whitespace-nowrap flex items-center gap-1.5 sm:gap-2"><img src="/logo.png" alt="" width={28} height={28} className="w-6 h-6 sm:w-7 sm:h-7 shrink-0" /><span>Message <span className="hand text-tomato text-lg min-[380px]:text-xl sm:text-2xl">in a</span> Cell</span></Link>
           <div className="flex items-center gap-3 sm:gap-4 label">
             <Link href="/#how" className="hidden md:inline hover:text-tomato">How it works</Link>
             {/* On phones "My capsules" lives in the wallet menu, to leave room for the wallet */}
