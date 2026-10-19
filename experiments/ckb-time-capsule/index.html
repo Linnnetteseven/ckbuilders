@@ -235,28 +235,11 @@
   <!-- SEAL -->
   <div class="panel">
     <div class="panel-title">// Seal a Capsule</div>
-    <form id="seal-form">
-      <label>Private Key (testnet)</label>
-      <input type="password" id="private-key" placeholder="0x..." autocomplete="off" />
-
-      <label>To</label>
-      <input type="text" id="to" placeholder="Future Linet" maxlength="60" />
-
-      <label>From</label>
-      <input type="text" id="from" placeholder="Linet, August 2026" maxlength="60" />
-
-      <label>Message</label>
-      <textarea id="message" placeholder="Write something to your future self..."></textarea>
-
-      <label>Open Date</label>
-      <input type="date" id="open-date" />
-
-      <button type="submit">Seal on Chain →</button>
-    </form>
-    <div id="seal-status" class="status"></div>
-    <div id="capsule-result" class="result-box hidden">
-      <div class="result-label">Capsule ID (save this)</div>
-      <div id="capsule-hash" class="tx-hash"></div>
+    <!-- Retired 2026-10-19: this form asked for a raw private key. Never paste a private key into a website. -->
+    <div class="status" role="alert" style="display:block;border:1px solid #c0392b;background:rgba(192,57,43,.12);color:#f5b7b1;padding:14px;line-height:1.6">
+      <strong>Sealing is retired.</strong> This early version asked for a private key, which no website should ever do.
+      If you ever pasted one here, move those funds to a new wallet.<br /><br />
+      A new version that works with your own wallet is coming soon. You can still open existing capsules on the right.
     </div>
   </div>
 

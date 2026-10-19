@@ -20,7 +20,8 @@ const sealStatus = document.getElementById("seal-status") as HTMLElement;
 const capsuleResult = document.getElementById("capsule-result") as HTMLElement;
 const capsuleHash = document.getElementById("capsule-hash") as HTMLElement;
 
-sealForm.addEventListener("submit", async (e) => {
+// Sealing is retired (it took a raw private key); the form no longer exists
+sealForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
 
   const privateKey = (document.getElementById("private-key") as HTMLInputElement).value.trim();
