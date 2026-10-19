@@ -11,6 +11,8 @@ export function CameraSnap({ onPhoto, onClose }: { onPhoto: (b: Blob) => void; o
   const stream = useRef<MediaStream | null>(null);
   const [facing, setFacing] = useState<"user" | "environment">("environment");
   const [error, setError] = useState("");
+  // Snap only once frames are actually arriving; before that a snap would capture nothing
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -36,11 +38,11 @@ export function CameraSnap({ onPhoto, onClose }: { onPhoto: (b: Blob) => void; o
   return (
     <div className="card relative p-3 space-y-3 max-w-sm">
       {error ? <p className="text-tomato text-sm p-2">{error}</p> : (
-        <video ref={video} muted playsInline className="w-full aspect-square object-cover rounded-xl bg-ink" aria-label="Camera preview" />
+        <video ref={video} muted playsInline onPlaying={() => setReady(true)} className="w-full aspect-square object-cover rounded-xl bg-ink" aria-label="Camera preview" />
       )}
       <div className="flex flex-wrap items-center gap-2">
-        {!error && <button type="button" className="btn" onClick={snap}>Snap</button>}
-        {!error && <button type="button" className="btn btn-ghost !text-xs" onClick={() => setFacing((f) => (f === "user" ? "environment" : "user"))}>Flip camera</button>}
+        {!error && <button type="button" className="btn" disabled={!ready} onClick={snap}>{ready ? "Snap" : "Starting camera…"}</button>}
+        {!error && <button type="button" className="btn btn-ghost !text-xs" onClick={() => { setReady(false); setFacing((f) => (f === "user" ? "environment" : "user")); }}>Flip camera</button>}
         <button type="button" className="text-sm underline" onClick={onClose}>Cancel</button>
       </div>
     </div>
