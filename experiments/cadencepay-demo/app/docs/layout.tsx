@@ -12,9 +12,12 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
     <>
       <header className="sticky top-0 z-40 bg-white/92 backdrop-blur-md border-b border-blush-2">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-          <Link href="/" className="text-pink text-2xl whitespace-nowrap">
-            <span className="font-semibold tracking-[-0.06em]">Cadence</span><span className="font-serif italic">Pay</span>
-            <span className="ml-2 align-middle font-mono text-[11px] tracking-[0.14em] uppercase text-ink-3">Docs</span>
+          <Link href="/" className="text-pink text-2xl whitespace-nowrap flex items-center gap-2">
+            <img src="/logo.png" alt="" width={32} height={32} className="w-7 h-7 sm:w-8 sm:h-8 shrink-0" />
+            <span>
+              <span className="font-semibold tracking-[-0.06em]">Cadence</span><span className="font-serif italic">Pay</span>
+              <span className="ml-2 align-middle font-mono text-[11px] tracking-[0.14em] uppercase text-ink-3">Docs</span>
+            </span>
           </Link>
           <nav className="flex items-center gap-5 text-sm">
             <a href="https://github.com/Linnnetteseven/ckbuilders/tree/main/experiments" target="_blank" rel="noreferrer" className="text-ink-2 hover:text-pink hidden sm:inline">GitHub</a>

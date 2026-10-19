@@ -66,7 +66,7 @@ function StickyHeader({ show }: { show: boolean }) {
   return (
     <header aria-hidden={!show} className={`fixed top-0 inset-x-0 z-50 bg-white/92 backdrop-blur-md border-b border-blush-2 transition-transform duration-500 ease-[cubic-bezier(.16,1,.3,1)] ${show ? "translate-y-0" : "-translate-y-full"}`}>
       <div className="max-w-[90rem] mx-auto px-4 sm:px-8 h-14 flex items-center justify-between gap-4 text-pink">
-        <Link href="/" tabIndex={show ? 0 : -1} className="text-2xl"><Wordmark /></Link>
+        <Link href="/" tabIndex={show ? 0 : -1} className="text-2xl flex items-center gap-2"><img src="/logo.png" alt="" width={32} height={32} className="w-7 h-7 sm:w-8 sm:h-8 shrink-0" /><Wordmark /></Link>
         <nav className="flex items-center gap-5 text-sm">
           <a href="#how" tabIndex={show ? 0 : -1} className="hover:underline hidden sm:inline">How it works</a>
           <Link href="/docs" tabIndex={show ? 0 : -1} className="hover:underline">Docs</Link>

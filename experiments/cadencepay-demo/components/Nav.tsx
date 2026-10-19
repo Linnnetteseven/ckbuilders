@@ -19,6 +19,7 @@ export function Nav() {
     <header className="fixed top-0 inset-x-0 z-50 bg-white/90 backdrop-blur-md border-b border-line/80">
       <nav aria-label="Main" className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-2">
         <Link href="/" className="flex items-center gap-2 shrink-0">
+          <img src="/logo.png" alt="" width={32} height={32} className="w-7 h-7 sm:w-8 sm:h-8 shrink-0" />
           <span className="text-pink text-[1.45rem] leading-none whitespace-nowrap">
             <span className="font-semibold tracking-[-0.06em]">Cadence</span><span className="font-serif italic">Pay</span>
           </span>
