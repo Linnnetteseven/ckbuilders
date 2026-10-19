@@ -1,0 +1,113 @@
+@import "tailwindcss";
+
+/*
+ * Message in a Cell: a treasure map meets an engineering drawing.
+ * Paper and poster colours (after ridetorio), blueprint line work (after Heron).
+ */
+@theme {
+  --font-sans: var(--font-fraunces), Georgia, serif;
+  --font-serif: var(--font-fraunces), Georgia, serif;
+  --font-slab: var(--font-slab), Rockwell, serif;
+  --font-hand: var(--font-caveat), cursive;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --color-paper:   #F4EAD0;
+  --color-paper-2: #FBF4DF;
+  --color-ink:     #1E1B16;
+  --color-ink-2:   #4A4337;
+  --color-line:    #D9CBA6;
+  --color-tomato:  #C8452C;
+  --color-brass:   #D9A93B;
+  --color-olive:   #8C9A4A;
+  --color-sea:     #2B4C8C;
+  --color-night:   #1B2A3A;
+}
+
+html { background: var(--color-paper); color: var(--color-ink); scroll-behavior: smooth; }
+body {
+  font-family: var(--font-serif); font-size: 17px; line-height: 1.6; background-color: var(--color-paper);
+  /* faint paper grain */
+  background-image: radial-gradient(rgba(30,27,22,.045) 1px, transparent 1px);
+  background-size: 4px 4px;
+}
+::selection { background: var(--color-brass); color: var(--color-ink); }
+h1, h2, h3 { text-wrap: balance; }
+p { text-wrap: pretty; }
+.tnum { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 3px solid var(--color-tomato); outline-offset: 3px; border-radius: 6px; }
+
+/* Poster slab title: cream letters, ink outline and a hard offset shadow */
+.poster {
+  font-family: var(--font-slab); line-height: .86; letter-spacing: -0.01em; color: var(--color-paper-2);
+  -webkit-text-stroke: 2px var(--color-ink); paint-order: stroke fill;
+  text-shadow: 4px 5px 0 var(--color-tomato), 5px 6px 0 var(--color-ink);
+}
+.slab { font-family: var(--font-slab); letter-spacing: -0.005em; line-height: 1; }
+.hand { font-family: var(--font-hand); }
+.label { font-family: var(--font-mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
+
+/* Buttons: poster pill with an offset ink shadow that presses in */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+  border-radius: 999px; padding: .7rem 1.35rem; font-family: var(--font-slab); font-size: .95rem; letter-spacing: .01em;
+  background: var(--color-tomato); color: var(--color-paper-2); border: 2px solid var(--color-ink);
+  box-shadow: 3px 3px 0 var(--color-ink);
+  transition: transform 160ms cubic-bezier(.16,1,.3,1), box-shadow 160ms cubic-bezier(.16,1,.3,1);
+}
+.btn:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: 5px 5px 0 var(--color-ink); }
+.btn:active:not(:disabled) { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--color-ink); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn-ghost { background: var(--color-paper-2); color: var(--color-ink); }
+
+/* Stamp card: cream card with an ink border, a slight tilt and a dashed inner rule */
+.card { background: var(--color-paper-2); border: 2px solid var(--color-ink); border-radius: 18px; box-shadow: 4px 5px 0 rgba(30,27,22,.85); }
+/* .stamp needs a positioned box: add `relative` (or `absolute`) where it is used */
+.stamp::after { content: ""; position: absolute; inset: 6px; border: 1.5px dashed rgba(30,27,22,.35); border-radius: 12px; pointer-events: none; }
+.badge { display: inline-block; background: var(--color-ink); color: var(--color-paper-2); border-radius: 10px; padding: .1em .45em; font-family: var(--font-slab); box-shadow: 2px 3px 0 var(--color-tomato); }
+
+/* Torn paper edge for section breaks */
+.torn { height: 18px; background: var(--color-paper);
+  mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 22px 100%;
+  -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 22px 100%; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .btn { transition: none; }
+}
+
+/* ── Scroll engine: pinned tracks read --p (0 → 1) from useScrollProgress ── */
+@media (prefers-reduced-motion: reduce) {
+  .pin-track { height: auto !important; }
+  .pin-sticky { position: relative; height: auto; min-height: 100dvh; }
+}
+
+/* Hero parallax on the page's own scroll timeline (static where unsupported) */
+.hero-far, .hero-near, .hero-cloud, .hero-sun { animation: linear both; animation-timeline: scroll(root); animation-range: 0 100vh; }
+.hero-far { animation-name: hero-far; }
+.hero-near { animation-name: hero-near; }
+.hero-sun { animation-name: hero-sun; }
+.hero-cloud { animation-name: hero-cloud; transform-box: fill-box; }
+@keyframes hero-far { to { transform: translateY(-40px); } }
+@keyframes hero-near { to { transform: translateY(-110px); } }
+@keyframes hero-sun { to { transform: translateY(120px); } }
+@keyframes hero-cloud { to { translate: calc(var(--k) * 120px) 0; } }
+
+/* Blueprint: strokes draw in, notes and fills fade in, each from its own start --s over --l */
+.bp-draw, .bp-note, .bp-fill, .bp-grid { --d: clamp(0, calc((var(--p, 1) - var(--s)) / var(--l)), 1); }
+.bp-draw { stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--d)); }
+.bp-note, .bp-fill, .bp-grid { opacity: var(--d); }
+.bp-label { font-family: var(--font-slab); font-size: 15px; fill: var(--color-ink); }
+.bp-value { font-family: var(--font-mono); font-size: 11px; letter-spacing: .06em; fill: var(--color-ink-2); }
+.bp-step { opacity: .35; transition: opacity 400ms; }
+.bp-step.is-on { opacity: 1; }
+
+/* Map */
+.map-cloud { translate: calc((var(--p, 0) - .5) * var(--k) * 160px) 0; }
+.map-needle { left: clamp(0%, calc((var(--p, 0) - .05) / .85 * 100%), 100%); }
+.chapter-in { animation: chapter-in 450ms cubic-bezier(.16,1,.3,1) both; }
+@keyframes chapter-in { from { transform: translateY(.3em); } to { transform: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-far, .hero-near, .hero-cloud, .hero-sun, .chapter-in { animation: none; }
+  .map-cloud { translate: none; }
+}

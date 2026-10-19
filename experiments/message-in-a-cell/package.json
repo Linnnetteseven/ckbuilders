@@ -1,0 +1,31 @@
+{
+  "name": "message-in-a-cell",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "test": "tsx --test test/*.test.ts"
+  },
+  "dependencies": {
+    "@ckb-ccc/connector-react": "^2.2.2",
+    "@ckb-ccc/core": "^1.23.0",
+    "@vercel/blob": "^2.8.2",
+    "next": "16.3.5",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.5",
+    "tailwindcss": "^4",
+    "typescript": "^5",
+    "tsx": "^4.20.0"
+  }
+}
