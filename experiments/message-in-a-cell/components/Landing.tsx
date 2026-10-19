@@ -5,6 +5,7 @@ import { CAPSULE_LOCK } from "@/lib/capsule";
 import { useScrollProgress } from "./useScrollProgress";
 import { Blueprint } from "./Blueprint";
 import { TreasureMap } from "./TreasureMap";
+import { WalletChip } from "./WalletChip";
 
 const GITHUB = "https://github.com/Linnnetteseven/ckbuilders/tree/main/experiments";
 
@@ -33,7 +34,8 @@ function Nav() {
           <div className="flex items-center gap-4 label">
             <a href="#how" className="hidden sm:inline hover:text-tomato">How it works</a>
             <Link href="/mine" className="hidden sm:inline hover:text-tomato">My capsules</Link>
-            <Link href="/seal" className="btn !py-1.5 !px-3.5 !text-xs">Seal one</Link>
+            <span className="hidden sm:inline"><Link href="/seal" className="btn !py-1.5 !px-3.5 !text-xs">Seal one</Link></span>
+            <WalletChip />
           </div>
         </div>
       </nav>

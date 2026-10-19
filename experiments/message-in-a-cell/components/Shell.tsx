@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { WalletChip } from "./WalletChip";
 
 /** The app's nav: same paper pill as the landing page, sticky so it's always one tap away. */
 export function AppNav() {
@@ -6,12 +7,14 @@ export function AppNav() {
     <header className="sticky top-0 z-30 pt-3 px-4 sm:px-6 bg-gradient-to-b from-paper from-60% to-transparent pb-3">
       <nav aria-label="Main" className="max-w-6xl mx-auto">
         <div className="card flex items-center justify-between gap-3 !rounded-full px-4 py-2">
-          <Link href="/" className="slab text-lg whitespace-nowrap">Message <span className="hand text-tomato text-2xl">in a</span> Cell</Link>
-          <div className="flex items-center gap-4 label">
-            <Link href="/#how" className="hidden sm:inline hover:text-tomato">How it works</Link>
-            <Link href="/mine" className="hover:text-tomato whitespace-nowrap">My capsules</Link>
+          <Link href="/" className="slab text-base sm:text-lg whitespace-nowrap">Message <span className="hand text-tomato text-xl sm:text-2xl">in a</span> Cell</Link>
+          <div className="flex items-center gap-3 sm:gap-4 label">
+            <Link href="/#how" className="hidden md:inline hover:text-tomato">How it works</Link>
+            {/* On phones "My capsules" lives in the wallet menu, to leave room for the wallet */}
+            <Link href="/mine" className="hidden sm:inline hover:text-tomato whitespace-nowrap">My capsules</Link>
             {/* .btn sets its own display, so hide the wrapper on phones */}
-            <span className="hidden sm:inline"><Link href="/seal" className="btn !py-1.5 !px-3.5 !text-xs">Seal one</Link></span>
+            <span className="hidden md:inline"><Link href="/seal" className="btn !py-1.5 !px-3.5 !text-xs">Seal one</Link></span>
+            <WalletChip />
           </div>
         </div>
       </nav>
