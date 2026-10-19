@@ -7,7 +7,7 @@ import { Countdown } from "@/components/Countdown";
 import { CapsuleArt } from "@/components/CapsuleArt";
 import { AppFooter, AppNav, PageTitle } from "@/components/Shell";
 import { friendlyTxError } from "@/lib/txErrors";
-import { buildCheckInTx, buildSpendTx, capsuleId, findMyCapsules, readPublicData, RECLAIM_GRACE_SECS, MEDIAN_TIME_LAG_SECS } from "@/lib/capsule";
+import { buildCheckInTx, buildSpendTx, capsuleId, chainMedianSecs, findMyCapsules, readPublicData, RECLAIM_GRACE_SECS } from "@/lib/capsule";
 
 type Row = Awaited<ReturnType<typeof findMyCapsules>>[number];
 const nowSecs = () => BigInt(Math.floor(Number(new Date()) / 1000));
@@ -18,6 +18,12 @@ export default function Mine() {
   const [busy, setBusy] = useState("");
   const [msg, setMsg] = useState("");
   const [refresh, setRefresh] = useState(0);
+  const [chainNow, setChainNow] = useState<bigint | null>(null);
+  useEffect(() => {
+    let alive = true;
+    chainMedianSecs(client).then((t) => { if (alive) setChainNow(t); }, () => {});
+    return () => { alive = false; };
+  }, [client, refresh]);
 
   useEffect(() => {
     if (!lock) return;
@@ -40,7 +46,8 @@ export default function Mine() {
   };
 
   const list = rows && lock && rows.owner === lock.hash() ? rows.rows : null;
-  const now = nowSecs() - MEDIAN_TIME_LAG_SECS;
+  // The chain's own clock decides when gifts are due; wall time until it answers
+  const now = chainNow ?? nowSecs();
   const sent = list?.filter((r) => r.role === "sender") ?? [];
   const received = list?.filter((r) => r.role === "recipient") ?? [];
 

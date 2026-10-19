@@ -49,6 +49,24 @@ export function OpenView({ id }: { id: string }) {
     return () => { cancelled = true; };
   }, [client, id, refresh]);
 
+  // While it's still sealed, re-ask the chain every 15 seconds so the Open
+  // button appears by itself the moment the network's clock reaches the date.
+  const stillSealed = loaded?.view.state === "sealed";
+  useEffect(() => {
+    if (!stillSealed) return;
+    const t = setInterval(() => setRefresh((n) => n + 1), 15_000);
+    return () => clearInterval(t);
+  }, [stillSealed]);
+
+  // Wall-clock seconds, for the gap between "the date has passed" and "the chain agrees"
+  const [nowWall, setNowWall] = useState(0);
+  useEffect(() => {
+    const tick = () => setNowWall(Math.floor(Number(new Date()) / 1000));
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, []);
+
   const reveal = async (l: Loaded) => {
     if (!secrets) return;
     try {
@@ -210,7 +228,14 @@ export function OpenView({ id }: { id: string }) {
               ) : view.state === "sealed" ? (
                 isGift ? (
                   <div className="space-y-6">
-                    <Countdown to={opensAt} label="Opens in" />
+                    {nowWall >= opensAt ? (
+                      <div className="card relative p-5 space-y-1" aria-live="polite">
+                        <p className="slab text-2xl">Almost there…</p>
+                        <p className="text-ink-2">The network&apos;s clock runs a minute or two behind, and it has the final say. This page checks every few seconds, and the Open button appears as soon as the network agrees it&apos;s time. No need to refresh.</p>
+                      </div>
+                    ) : (
+                      <Countdown to={opensAt} label="Opens in" />
+                    )}
                     <p className="text-ink-2">{new Date(opensAt * 1000).toLocaleString(undefined, { weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}</p>
                     <RouteSteps steps={[
                       { title: "Keep this link", body: "Bookmark it or keep the message it came in. It's the key." },

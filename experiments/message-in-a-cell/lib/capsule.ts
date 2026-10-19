@@ -36,6 +36,25 @@ export type Mode = keyof typeof MODE;
 export const RECLAIM_GRACE_SECS = 90n * 24n * 60n * 60n;
 /** Consensus compares `since` to the median of recent block times, which trails real time by a few minutes */
 export const MEDIAN_TIME_LAG_SECS = 300n;
+
+/**
+ * The chain's own clock, in Unix seconds: the median block time CKB checks
+ * `since` against (RPC get_block_median_time). Falls back to the tip's
+ * timestamp minus a safe allowance if the node doesn't answer.
+ */
+export async function chainMedianSecs(client: ccc.Client, blockHash?: ccc.Hex): Promise<bigint> {
+  const hash = blockHash ?? (await client.getTipHeader()).hash;
+  try {
+    // Through CCC's own connection (WebSocket or HTTP), so it works with any client transport
+    const rpc = (client as unknown as { requestor?: { request: (method: string, params: unknown[]) => Promise<unknown> } }).requestor;
+    if (rpc) {
+      const result = await rpc.request("get_block_median_time", [hash]);
+      if (typeof result === "string") return BigInt(result) / 1000n;
+    }
+  } catch { /* fall through */ }
+  const header = blockHash ? await client.getHeaderByHash(blockHash) : await client.getTipHeader();
+  return header ? header.timestamp / 1000n - MEDIAN_TIME_LAG_SECS : 0n;
+}
 const CKB = 100_000_000n;
 /** Smallest secp256k1 cell; used for the "send as a link" key cell */
 export const KEY_CELL_CAPACITY = 61n * CKB;
@@ -295,6 +314,8 @@ export interface CapsuleView {
   state: CapsuleState;
   /** tx that opened / moved it, when spent */
   spentBy?: ccc.Hex;
+  /** the chain's clock (median time, Unix seconds) when this was read */
+  chainNow: bigint;
 }
 
 /** Look a capsule up by id; works even after it was opened (the data stays in chain history). */
@@ -320,20 +341,20 @@ export async function loadCapsule(client: ccc.Client, id: string): Promise<{ vie
       }
     }
   }
-  const nowSecs = (await client.getTipHeader()).timestamp / 1000n - MEDIAN_TIME_LAG_SECS;
+  const nowSecs = await chainMedianSecs(client);
   let state: CapsuleState = "opened";
   if (live) {
     if (terms.mode === "gift") {
       state = nowSecs >= terms.t + RECLAIM_GRACE_SECS ? "reclaimable" : nowSecs >= terms.t ? "openable" : "sealed";
     } else {
       // Relative to when this cell was created
-      const created = createdIn.blockHash ? await client.getHeaderByHash(createdIn.blockHash) : undefined;
-      const createdSecs = created ? created.timestamp / 1000n : nowSecs;
+      // Relative since counts from the median time at the block that created this cell
+      const createdSecs = createdIn.blockHash ? await chainMedianSecs(client, createdIn.blockHash) : nowSecs;
       state = nowSecs >= createdSecs + terms.t ? "openable" : "sealed";
     }
   }
   return {
-    view: { id: capsuleId(cell.outPoint), outPoint: { txHash: cell.outPoint.txHash, index: Number(cell.outPoint.index) }, terms, capacity: cell.cellOutput.capacity, data: readPublicData(rawData), state },
+    view: { id: capsuleId(cell.outPoint), outPoint: { txHash: cell.outPoint.txHash, index: Number(cell.outPoint.index) }, terms, capacity: cell.cellOutput.capacity, data: readPublicData(rawData), state, chainNow: nowSecs },
     cell, rawData,
   };
 }
