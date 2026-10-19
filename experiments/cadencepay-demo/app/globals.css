@@ -4,6 +4,7 @@
   --font-sans: var(--font-geist), system-ui, sans-serif;
   --font-display: var(--font-geist), system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-serif: var(--font-instrument), Georgia, serif;
 
   --color-page:    #FFFFFF;
   --color-soft:    #F7F5F3;
@@ -100,7 +101,7 @@ p { text-wrap: pretty; }
 .pill-danger:hover:not(:disabled) { color: #FFFFFF; border-color: #B42318; }
 
 /* Cover banners: tilt toward you on hover in the explore collage */
-.cover-card { transform: rotate(var(--r, 0deg)) translateY(var(--y, 0px)); transition: transform 450ms cubic-bezier(.16,1,.3,1), box-shadow 450ms cubic-bezier(.16,1,.3,1); }
+.cover-card { transform: rotate(var(--r, 0deg)) translateY(calc(var(--y, 0px) + (var(--p, .5) - .5) * var(--k, 0) * -90px)); transition: transform 450ms cubic-bezier(.16,1,.3,1), box-shadow 450ms cubic-bezier(.16,1,.3,1); }
 .cover-card:hover, .cover-card:focus-visible { transform: rotate(0deg) translateY(-8px) scale(1.02); box-shadow: 0 30px 60px -24px rgba(24,21,18,.45); }
 
 .lift { transition: transform 300ms cubic-bezier(.16,1,.3,1), box-shadow 300ms cubic-bezier(.16,1,.3,1); }
@@ -115,3 +116,129 @@ p { text-wrap: pretty; }
   .rise { animation: none; }
   .animate-pulse { animation: none; }
 }
+
+/* ── Landing page: everything that moves reads --p (0 → 1) from useScrollProgress ── */
+.live-dot { animation: live 1.8s ease-in-out infinite; }
+@keyframes live { 50% { opacity: .35; } }
+
+/* creator covers drift at different speeds as the strip passes */
+.drift { transform: translateY(calc((var(--p, .5) - .5) * var(--d) * -48px)); }
+
+/* the statement fills in word by word */
+.fill-word { opacity: clamp(.22, calc((var(--fp, var(--p, 1)) - var(--i) * .7) * 6), 1); }
+
+/* pinned process: each card rises in its turn */
+.step-card {
+  --t: clamp(0, calc((var(--p, 1) * 4.5 - var(--i) + .4) / .8), 1);
+  transform: translateY(calc((1 - var(--t)) * 58%));
+  will-change: transform;
+}
+@media (max-width: 639px) {
+  .step-card { position: absolute; inset: 0; transform: translateY(calc((1 - var(--t)) * 112%)); box-shadow: 0 -24px 40px -28px rgba(24,21,18,.5); }
+  .step-card:first-child { transform: none; }
+}
+.tick { animation: tick 500ms cubic-bezier(.16,1,.3,1) both; }
+@keyframes tick { from { transform: translateY(.22em); } to { transform: none; } }
+
+/* pinned tickets: fly up from below and fan out */
+.ticket-fly {
+  --t: clamp(0, calc(var(--p, 1) * 2.4 - var(--i) * .45 + .3), 1);
+  --xm: min(20rem, 27vw);
+  transform:
+    translate(-50%, -50%)
+    translateX(calc(var(--x) * var(--xm) * var(--t)))
+    translateY(calc((1 - var(--t)) * 75vh))
+    rotateZ(calc(var(--rot) * var(--t)))
+    rotateX(calc((1 - var(--t)) * 38deg));
+  will-change: transform;
+}
+@media (max-width: 639px) { .ticket-fly { --xm: 2.6rem; } }
+.ticket { transition: transform 400ms cubic-bezier(.16,1,.3,1); }
+.ticket:hover, .ticket:focus-visible { transform: translateY(-10px) rotate(-1deg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pin-track { height: auto !important; }
+  .pin-sticky { position: relative; height: auto; min-height: 100dvh; }
+  .step-card { position: relative !important; transform: none !important; }
+  .steps { display: grid; gap: .75rem; }
+  .live-dot, .tick { animation: none; }
+  .ticket, .drift { transition: none; transform: none; }
+}
+
+/* ── Docs prose ── */
+.doc h1 { font-size: clamp(2.3rem, 5vw, 3.4rem); line-height: 1; letter-spacing: -0.045em; color: var(--color-pink); }
+.doc h1 em, .doc h2 em { font-family: var(--font-serif); font-style: italic; letter-spacing: -0.01em; }
+.doc .lede { margin-top: 1rem; font-size: 1.2rem; line-height: 1.55; color: var(--color-ink-2); }
+.doc h2 { margin-top: 3rem; font-size: 1.65rem; font-weight: 600; letter-spacing: -0.03em; scroll-margin-top: 5rem; }
+.doc h3 { margin-top: 2rem; font-size: 1.15rem; font-weight: 600; letter-spacing: -0.02em; }
+.doc p, .doc ul, .doc ol { margin-top: .9rem; color: var(--color-ink-2); line-height: 1.7; }
+.doc ul { list-style: disc; padding-left: 1.25rem; }
+.doc ol { list-style: decimal; padding-left: 1.4rem; }
+.doc li { margin-top: .35rem; }
+.doc li::marker { color: var(--color-pink); }
+.doc strong { color: var(--color-ink); font-weight: 600; }
+.doc a:not(.pill) { color: var(--color-pink); text-decoration: underline; text-decoration-color: var(--color-blush-2); text-underline-offset: 3px; }
+.doc a:not(.pill):hover { text-decoration-color: var(--color-pink); }
+.doc :not(pre) > code { font-family: var(--font-mono); font-size: .86em; background: var(--color-blush); color: var(--color-pink-deep); padding: .1em .35em; border-radius: .35em; overflow-wrap: anywhere; }
+.doc table { margin-top: 1.2rem; width: 100%; border-collapse: collapse; font-size: .92rem; display: block; overflow-x: auto; }
+.doc th { text-align: left; font-weight: 600; color: var(--color-ink); border-bottom: 2px solid var(--color-ink); padding: .5rem .75rem .5rem 0; white-space: nowrap; }
+.doc td { border-bottom: 1px solid var(--color-line); padding: .6rem .75rem .6rem 0; vertical-align: top; color: var(--color-ink-2); }
+.doc .callout { margin-top: 1.4rem; border: 1px solid var(--color-blush-2); background: var(--color-blush); padding: .9rem 1.1rem; border-radius: 1rem; }
+.doc .callout p { margin-top: 0; color: var(--color-ink); }
+
+/* ── Landing: first scroll. The frame opens, then tiles slice away (after neutomni) ── */
+.show-frame {
+  --a: calc(1 - clamp(0, var(--p, 1) / .3, 1));
+  /* last stretch: the empty frame wipes upward and hands back to the page */
+  --c: clamp(0, calc((var(--p, 0) - .84) / .12), 1);
+  clip-path: inset(calc(var(--a) * 16%) calc(var(--a) * 26%) calc(var(--a) * 20% + var(--c) * 100%) calc(var(--a) * 26%) round calc(var(--a) * 28px));
+  will-change: clip-path;
+}
+@media (max-width: 639px) {
+  .show-frame { clip-path: inset(calc(var(--a) * 14%) calc(var(--a) * 8%) calc(var(--a) * 22% + var(--c) * 100%) calc(var(--a) * 8%) round calc(var(--a) * 24px)); }
+}
+/* tiles ease in from slightly larger as the frame opens */
+.show-grid { transform: scale(calc(1 + var(--a) * .12)); }
+.show-caption { opacity: calc(1 - var(--a) * 1.6); }
+.show-under { --fp: clamp(0, calc((var(--p, 1) - .86) / .13), 1); opacity: clamp(0, calc((var(--p, 1) - .8) * 40), 1); }
+.slice-tile {
+  --s: clamp(0, calc((var(--p, 0) - .42 - var(--i) * .058) / .15), 1);
+  clip-path: inset(calc(var(--s) * var(--dt) * 100%) calc(var(--s) * var(--dr) * 100%) calc(var(--s) * var(--db) * 100%) calc(var(--s) * var(--dl) * 100%));
+}
+@media (prefers-reduced-motion: reduce) {
+  .show-frame, .slice-tile { clip-path: none; }
+  /* no pinning: show the tiles, then the statement below them */
+  .show-stage { display: flex; flex-direction: column; }
+  .show-frame { position: relative; height: 100dvh; }
+  .show-under { position: relative; order: 2; padding: 4rem 0 6rem; }
+  .show-grid { transform: none; }
+  .show-caption, .show-under { opacity: 1; }
+}
+
+/* ── Demo app: the same --p scroll engine, used lightly ── */
+/* big line that slides sideways */
+.marquee { transform: translateX(calc(var(--p, .5) * -28%)); will-change: transform; }
+/* cards slice up into place in turn; negative insets keep hover shadows unclipped once settled */
+.slice-in {
+  --t: clamp(0, calc(var(--p, 1) * 3 - var(--i, 0) * .3 - .2), 1);
+  clip-path: inset(-40px -40px calc((1 - var(--t)) * 24% - var(--t) * 40px) -40px);
+  translate: 0 calc((1 - var(--t)) * 26px);
+}
+/* steps rise one after another */
+.step-rise {
+  --t: clamp(0, calc(var(--p, 1) * 3 - var(--i, 0) * .35 - .25), 1);
+  translate: 0 calc((1 - var(--t)) * 36px);
+}
+/* the dark promise panel opens out, after neutomni's expanding frame */
+.expand-panel {
+  --t: clamp(0, calc(var(--p, 1) * 2.4 - .3), 1);
+  clip-path: inset(calc((1 - var(--t)) * 9%) calc((1 - var(--t)) * 7%) round 2rem);
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee, .slice-in, .step-rise { transform: none; translate: none; clip-path: none; }
+  .expand-panel { clip-path: none; }
+}
+/* creator cover sinks slower than the page (scroll timeline where supported; static elsewhere) */
+.cover-drift { transform-origin: top; animation: cover-drift linear both; animation-timeline: scroll(root); animation-range: 0 420px; }
+@keyframes cover-drift { from { transform: none; } to { transform: translateY(32%) scale(1.06); } }
+@media (prefers-reduced-motion: reduce) { .cover-drift { animation: none; } }

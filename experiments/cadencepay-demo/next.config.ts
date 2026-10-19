@@ -5,8 +5,14 @@ import type { NextConfig } from "next";
 // JoyID signing popup.
 const nextConfig: NextConfig = {
   async redirects() {
-    // Old demo link; the subscribe flow now lives on each creator's page
-    return [{ source: "/subscribe", destination: "/c/wanjiru-frames/join/supporter", permanent: false }];
+    // The demo moved under /app when / became the landing page; keep old links working
+    return [
+      { source: "/subscribe", destination: "/app/c/wanjiru-frames/join/supporter", permanent: false },
+      { source: "/c/:path*", destination: "/app/c/:path*", permanent: true },
+      { source: "/dashboard", destination: "/app/dashboard", permanent: true },
+      { source: "/creator", destination: "/app/creator", permanent: true },
+      { source: "/how-it-works", destination: "/app/how-it-works", permanent: true },
+    ];
   },
 };
 

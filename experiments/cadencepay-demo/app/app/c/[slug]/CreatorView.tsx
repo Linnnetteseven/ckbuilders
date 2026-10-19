@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ccc } from "@ckb-ccc/core";
 import { Nav } from "@/components/Nav";
+import { ScrollFx } from "@/components/landing/ScrollFx";
 import { Alert, Footer, Skeleton, btn } from "@/components/ui";
 import { Avatar, Chip, Cover } from "@/components/Creator";
 import { IconArrowLeft, IconArrowRight, IconCheck, IconLock } from "@/components/icons";
@@ -17,8 +18,9 @@ type Membership = { tierId: string | null; sub?: SubscriptionView };
 
 const postDate = (d: string) => new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 
-export function CreatorView({ slug }: { slug: string }) {
-  const creator = getCreator(slug) as Creator;
+export function CreatorView({ slug, creator: given }: { slug: string; creator?: Creator }) {
+  // Demo creators come from lib/creators; creators who signed up are loaded from the chain and passed in
+  const creator = given ?? (getCreator(slug) as Creator);
   const { signer, client, lock, address, connect } = useWallet();
   const [membership, setMembership] = useState<{ owner: string; m: Membership } | null>(null);
   const [bodies, setBodies] = useState<Record<string, string>>({});
@@ -28,6 +30,7 @@ export function CreatorView({ slug }: { slug: string }) {
   // Public post bodies
   useEffect(() => {
     let cancelled = false;
+    if (given) return; // signed-up creators have no posts yet
     fetch(`/api/posts/${slug}`)
       .then((r) => r.json() as Promise<{ posts: { id: string; body: string }[] }>)
       .then((d) => {
@@ -35,7 +38,7 @@ export function CreatorView({ slug }: { slug: string }) {
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [slug]);
+  }, [slug, given]);
 
   // The connected wallet's membership, read from the network
   useEffect(() => {
@@ -122,14 +125,15 @@ export function CreatorView({ slug }: { slug: string }) {
     <>
       <Nav />
       <main id="main" className="pt-16 overflow-x-clip">
-        <Cover creator={creator} className="h-44 sm:h-64" />
+        {/* Cover drifts slower than the page */}
+        <div className="overflow-hidden"><div className="cover-drift"><Cover creator={creator} className="h-44 sm:h-64" /></div></div>
 
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <header className="-mt-14 sm:-mt-16">
             <Avatar creator={creator} size="xl" ring />
             <div className="mt-4 flex flex-wrap items-start justify-between gap-5">
               <div className="min-w-0 max-w-2xl">
-                <h1 className="text-3xl sm:text-5xl font-semibold">{creator.name}</h1>
+                <h1 className="text-4xl sm:text-6xl font-semibold tracking-[-0.04em]">{creator.name}</h1>
                 <p className="mt-1 text-ink-2">{creator.craft}</p>
                 <p className="mt-4 text-[16.5px] leading-relaxed">{creator.bio}</p>
                 <p className="mt-3 text-xs text-ink-3">
@@ -150,7 +154,7 @@ export function CreatorView({ slug }: { slug: string }) {
                 <p className="text-sm text-forest flex-1 min-w-[12rem]">
                   {current.sub.periodsRemaining.toString()} payments left · next {current.sub.blocksUntilNextClaim === 0n ? "due now" : `in ${blocksToHuman(current.sub.blocksUntilNextClaim)}`}
                 </p>
-                <Link href="/dashboard" className={btn.secondarySm}>Manage</Link>
+                <Link href="/app/dashboard" className={btn.secondarySm}>Manage</Link>
               </div>
             ) : signer && !membership ? (
               <Skeleton className="mt-6 h-14" />
@@ -158,6 +162,7 @@ export function CreatorView({ slug }: { slug: string }) {
           </header>
 
           {/* Posts */}
+          {creator.posts.length > 0 && (
           <section aria-labelledby="posts" className="mt-14">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 id="posts" className="text-2xl font-semibold">Latest post</h2>
@@ -200,16 +205,17 @@ export function CreatorView({ slug }: { slug: string }) {
               </>
             )}
           </section>
+          )}
 
           {/* Membership tiers */}
           <section id="membership" aria-labelledby="membership-h" className="mt-20 scroll-mt-24">
-            <h2 id="membership-h" className="text-2xl font-semibold">Choose your membership</h2>
+            <h2 id="membership-h" className="text-3xl sm:text-4xl font-semibold tracking-[-0.03em]">Choose your <span className="text-pink font-serif italic font-normal tracking-[-0.01em]">membership.</span></h2>
             <p className="mt-1 text-ink-2">Your money stays yours. {creator.name} collects one payment per period, and you can cancel any time.</p>
-            <ul className={`mt-6 grid gap-5 ${creator.tiers.length > 1 ? "md:grid-cols-2" : "md:grid-cols-2"}`}>
-              {creator.tiers.map((t) => {
+            <ScrollFx as="ul" className="mt-6 grid gap-5 md:grid-cols-2">
+              {creator.tiers.map((t, ti) => {
                 const isCurrent = t.id === current?.tierId;
                 return (
-                  <li key={t.id} className={`lift rounded-3xl border bg-white p-6 flex flex-col ${isCurrent ? "border-forest ring-2 ring-forest/20" : "border-line"}`}>
+                  <li key={t.id} style={{ "--i": ti } as React.CSSProperties} className={`slice-in lift rounded-3xl border bg-white p-6 flex flex-col ${isCurrent ? "border-forest ring-2 ring-forest/20" : "border-line"}`}>
                     <div className="flex items-start justify-between gap-3">
                       <h3 className="text-xl font-semibold">{t.name}</h3>
                       {isCurrent ? <Chip tone="green">Your tier</Chip> : null}
@@ -222,18 +228,18 @@ export function CreatorView({ slug }: { slug: string }) {
                     </ul>
                     <div className="mt-auto">
                       {isCurrent ? (
-                        <Link href="/dashboard" className={`${btn.secondary} w-full`}>Manage membership</Link>
+                        <Link href="/app/dashboard" className={`${btn.secondary} w-full`}>Manage membership</Link>
                       ) : (
-                        <Link href={`/c/${creator.slug}/join/${t.id}`} className={`${btn.primary} w-full`}>Join {t.name}</Link>
+                        <Link href={`/app/c/${creator.slug}/join/${t.id}`} className={`${btn.primary} w-full`}>Join {t.name}</Link>
                       )}
                     </div>
                   </li>
                 );
               })}
-            </ul>
+            </ScrollFx>
           </section>
 
-          <Link href="/" className="inline-flex items-center gap-1.5 mt-14 text-sm text-ink-2 hover:text-pink"><IconArrowLeft className="w-4 h-4" />All creators</Link>
+          <Link href="/app" className="inline-flex items-center gap-1.5 mt-14 text-sm text-ink-2 hover:text-pink"><IconArrowLeft className="w-4 h-4" />All creators</Link>
         </div>
       </main>
       <Footer />

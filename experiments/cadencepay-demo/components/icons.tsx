@@ -20,6 +20,7 @@ export const IconArrowRight = (p: P) => <Svg {...p}><path d="M5 12h14M13 6l6 6-6
 export const IconArrowLeft = (p: P) => <Svg {...p}><path d="M19 12H5M11 6l-6 6 6 6" /></Svg>;
 export const IconExternal = (p: P) => <Svg {...p}><path d="M14 5h5v5M19 5l-8 8M18 14v4a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 4 18V7.5A1.5 1.5 0 0 1 5.5 6H10" /></Svg>;
 export const IconRefresh = (p: P) => <Svg {...p}><path d="M20 12a8 8 0 1 1-2.35-5.65M20 4v4.5h-4.5" /></Svg>;
+export const IconChevronDown = (p: P) => <Svg {...p}><path d="M6 9l6 6 6-6" /></Svg>;
 export const IconBook = (p: P) => (
   <Svg {...p}><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z" /><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3M9 7.5h6" /></Svg>
 );

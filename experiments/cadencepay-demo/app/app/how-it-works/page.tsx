@@ -29,8 +29,8 @@ export default function HowItWorks() {
       <Nav />
       <main id="main" className="pt-16 px-4 sm:px-6">
         <div className="max-w-2xl mx-auto pt-12">
-          <Link href="/" className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-pink"><IconArrowLeft className="w-4 h-4" />Explore</Link>
-          <h1 className="display-thin text-6xl sm:text-7xl mt-6 mb-5">How it works</h1>
+          <Link href="/app" className="inline-flex items-center gap-1.5 text-sm text-ink-2 hover:text-pink"><IconArrowLeft className="w-4 h-4" />Explore</Link>
+          <h1 className="display-thin text-6xl sm:text-7xl mt-6 mb-5">How it <span className="text-pink font-serif italic font-normal tracking-[-0.02em]">works.</span></h1>
           <p className="text-lg text-ink-2 mb-12 max-w-[50ch]">
             Like a chama or a savings club: everyone can see the rules, payments arrive on schedule, and your money is never in someone else&apos;s hands until it&apos;s paid.
           </p>

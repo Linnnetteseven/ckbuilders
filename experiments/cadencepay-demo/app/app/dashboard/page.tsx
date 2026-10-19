@@ -6,6 +6,7 @@ import { Nav } from "@/components/Nav";
 import { Alert, Footer, Receipt, Skeleton, btn } from "@/components/ui";
 import { Avatar, Chip, Cover } from "@/components/Creator";
 import { IconRefresh } from "@/components/icons";
+import { MembershipHistory } from "@/components/MembershipHistory";
 import { useWallet } from "@/lib/useWallet";
 import { CREATORS, tierForSubscription, type Creator } from "@/lib/creators";
 import {
@@ -15,7 +16,7 @@ import {
   buildTopUpTx,
   type SubscriptionView,
 } from "@/lib/cadencepay-sdk";
-import { formatCkb, blocksToHuman, shortHash, EXPLORER_TX } from "@/lib/cadencepay";
+import { formatCkb, blocksToHuman } from "@/lib/cadencepay";
 import { friendlyTxError } from "@/lib/txErrors";
 
 const STATUS: Record<SubscriptionView["status"], { label: string; tone: "green" | "pink" | "amber" }> = {
@@ -90,7 +91,7 @@ export default function Memberships() {
       <main id="main" className="pt-16 px-4 sm:px-6">
         <div className="max-w-3xl mx-auto">
           <div className="flex items-end justify-between gap-4 mt-12 mb-8">
-            <h1 className="display-thin text-5xl sm:text-6xl">Memberships</h1>
+            <h1 className="display-thin text-5xl sm:text-6xl">Your <span className="text-pink font-serif italic font-normal tracking-[-0.02em]">memberships.</span></h1>
             {lock && (
               <button onClick={() => { setLoaded(null); setRefresh((n) => n + 1); }} className={btn.quiet}><IconRefresh className="w-4 h-4" />Refresh</button>
             )}
@@ -113,7 +114,7 @@ export default function Memberships() {
             <div className="rounded-3xl bg-blush px-6 py-14 text-center">
               <h2 className="text-2xl font-semibold">No memberships yet</h2>
               <p className="text-ink-2 mt-2 mb-7">Find a creator you love and join a tier. New memberships can take a few seconds to appear.</p>
-              <Link href="/" className={btn.primaryLg}>Explore creators</Link>
+              <Link href="/app" className={btn.primaryLg}>Explore creators</Link>
             </div>
           ) : (
             <ul className="space-y-6">
@@ -130,7 +131,7 @@ export default function Memberships() {
                         <Chip tone={st.tone}>{st.label}</Chip>
                       </div>
                       <h2 className="mt-3 text-2xl font-semibold">
-                        {s.creator ? <Link href={`/c/${s.creator.slug}`} className="hover:text-pink">{s.creator.name}</Link> : "Unknown creator"}
+                        {s.creator ? <Link href={`/app/c/${s.creator.slug}`} className="hover:text-pink">{s.creator.name}</Link> : "Unknown creator"}
                       </h2>
                       <p className="text-ink-2 tnum">{tier ? `${tier.name} · ` : ""}{formatCkb(s.terms.amount)} CKB every {blocksToHuman(s.terms.intervalBlocks).replace("~", "")}</p>
 
@@ -172,10 +173,7 @@ export default function Memberships() {
                           <button onClick={() => setConfirming(k)} disabled={!!busy} className={btn.secondary}>Cancel membership</button>
                         )}
                       </div>
-                      <a href={EXPLORER_TX(s.cell.outPoint.txHash)} target="_blank" rel="noreferrer"
-                        className="inline-block mt-4 text-xs font-mono tnum text-ink-3 hover:text-pink">
-                        Latest receipt {shortHash(s.cell.outPoint.txHash)}
-                      </a>
+                      <MembershipHistory sub={s} client={client} />
                     </div>
                   </li>
                 );

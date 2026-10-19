@@ -8,6 +8,7 @@ import { Avatar, Chip, Cover } from "@/components/Creator";
 import { IconExternal } from "@/components/icons";
 import { useWallet } from "@/lib/useWallet";
 import { CREATORS, tierForSubscription } from "@/lib/creators";
+import { findMyProfile, type Profile } from "@/lib/profiles";
 import { findSubscriptions, viewSubscription, type SubscriptionView } from "@/lib/cadencepay-sdk";
 import { creatorPayouts, type PayoutEvent } from "@/lib/history";
 import { EXPLORER_TX, blocksToHuman, formatCkb, shortHash } from "@/lib/cadencepay";
@@ -39,12 +40,23 @@ export default function ForCreators() {
   // Payments already collected this session; the network index can lag a block or two
   const [pending, setPending] = useState<Set<string>>(new Set());
 
-  const creator = CREATORS.find((c) => c.slug === slug)!;
+  // A page the connected wallet published itself (see /app/start)
+  const [myProfile, setMyProfile] = useState<{ owner: string; profile: Profile } | null>(null);
+  const own = myProfile && lock && myProfile.owner === lock.hash() ? myProfile.profile.creator : null;
+  const creators = own ? [own, ...CREATORS] : CREATORS;
+  const creator = creators.find((c) => c.slug === slug) ?? CREATORS[0];
 
   // If the connected wallet IS one of the creators, open their page
   useEffect(() => {
     if (!lock) return;
     let cancelled = false;
+    findMyProfile(client, lock)
+      .then((p) => {
+        if (cancelled || !p) return;
+        setMyProfile({ owner: lock.hash(), profile: p });
+        setSlug(p.creator.slug);
+      })
+      .catch(() => {});
     Promise.all(CREATORS.map(async (c) => ({ c, s: (await ccc.Address.fromString(c.payoutAddress, client)).script })))
       .then((all) => {
         const mine = all.find(({ s }) => s.eq(lock));
@@ -82,14 +94,19 @@ export default function ForCreators() {
     for (const s of subs) {
       setBusy(keyOf(s));
       try {
-        const res = await fetch("/api/claim", {
+        // A membership that's out of payments is closed instead: the rest goes back to the member
+        const closing = s.status === "closable";
+        const res = await fetch(closing ? "/api/close" : "/api/claim", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ txHash: s.cell.outPoint.txHash, index: Number(s.cell.outPoint.index), recipientAddress: creator.payoutAddress }),
         });
         const d = (await res.json()) as { success: boolean; txHash?: string; error?: string };
         if (!d.success || !d.txHash) throw new Error(d.error ?? "");
-        setReceipts((r) => [{ label: `Collected ${formatCkb(s.terms.amount)} CKB for ${creator.name}`, txHash: d.txHash! }, ...r]);
+        const label = closing
+          ? `Closed a finished membership; ${formatCkb(s.cell.cellOutput.capacity)} CKB went back to the member`
+          : `Collected ${formatCkb(s.terms.amount)} CKB for ${creator.name}`;
+        setReceipts((r) => [{ label, txHash: d.txHash! }, ...r]);
         setPending((p) => new Set(p).add(keyOf(s)));
       } catch (e) {
         setError(friendlyCollectError(e instanceof Error ? e.message : ""));
@@ -109,7 +126,7 @@ export default function ForCreators() {
           <div className="-mt-12 flex flex-wrap items-end justify-between gap-4">
             <Avatar creator={creator} size="xl" ring />
             <div role="tablist" aria-label="Creator" className="flex gap-1 bg-soft p-1 rounded-full overflow-x-auto max-w-full">
-              {CREATORS.map((c) => (
+              {creators.map((c) => (
                 <button key={c.slug} role="tab" aria-selected={c.slug === slug} onClick={() => setSlug(c.slug)}
                   className={`whitespace-nowrap text-sm px-3.5 py-1.5 rounded-full transition-colors ${c.slug === slug ? "bg-white shadow-[0_1px_3px_rgba(24,21,18,.12)] font-semibold" : "text-ink-2 hover:text-ink"}`}>
                   {c.name}
@@ -120,7 +137,12 @@ export default function ForCreators() {
 
           <div className="mt-4 flex flex-wrap items-baseline justify-between gap-3">
             <h1 className="text-3xl sm:text-5xl font-semibold">{creator.name}</h1>
-            <Link href={`/c/${creator.slug}`} className={btn.quiet}>View public page <IconExternal className="w-3.5 h-3.5" /></Link>
+            <div className="flex flex-wrap items-center gap-4">
+              <Link href={`/app/c/${creator.slug}`} className={btn.quiet}>View public page <IconExternal className="w-3.5 h-3.5" /></Link>
+              {own && creator.slug === own.slug
+                ? <Link href="/app/start" className={btn.secondarySm}>Edit page</Link>
+                : !own && <Link href="/app/start" className={btn.primarySm}>Start your own page</Link>}
+            </div>
           </div>
 
           {current ? (
@@ -152,7 +174,7 @@ export default function ForCreators() {
               ) : current.subs.length === 0 ? (
                 <div className="py-12 text-center">
                   <p className="text-ink-2 mb-6">No members yet. Share your page to welcome your first one.</p>
-                  <Link href={`/c/${creator.slug}`} className={btn.secondary}>Open {creator.name}&apos;s page</Link>
+                  <Link href={`/app/c/${creator.slug}`} className={btn.secondary}>Open {creator.name}&apos;s page</Link>
                 </div>
               ) : (
                 <ul className="divide-y divide-line">
@@ -171,7 +193,12 @@ export default function ForCreators() {
                           </div>
                         </div>
                         {pending.has(k) ? (
-                          <span className="shrink-0" aria-live="polite"><Chip tone="green">Collected · updating</Chip></span>
+                          <span className="shrink-0" aria-live="polite"><Chip tone="green">{s.status === "closable" ? "Closed" : "Collected"} · updating</Chip></span>
+                        ) : s.status === "closable" ? (
+                          <button onClick={() => void collect([s])} disabled={!!busy} className={`${btn.secondarySm} shrink-0`}
+                            title="This membership has no payments left. Closing it sends the rest back to the member.">
+                            {busy === k ? "Closing…" : "Close & refund"}
+                          </button>
                         ) : (
                           <button onClick={() => void collect([s])} disabled={s.status !== "due" || !!busy} className={`${btn.secondarySm} shrink-0`}>
                             {busy === k ? "Collecting…" : "Collect"}
@@ -206,7 +233,7 @@ export default function ForCreators() {
                 </ul>
               )}
               <p className="text-xs text-ink-3 py-4 leading-relaxed">
-                Payments always go straight to {creator.name}. Collecting is free for you: a small helper pays the network fee.
+                Payments always go straight to {creator.name}. Collecting is free for you: a small helper pays the network fee, and it also collects anything due automatically once a day.
               </p>
             </section>
           </div>

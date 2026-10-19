@@ -14,10 +14,10 @@ import { friendlyTxError } from "@/lib/txErrors";
 
 type Step = "idle" | "building" | "signing" | "done" | "error";
 
-export function CheckoutView({ slug, tierId }: { slug: string; tierId: string }) {
-  const creator = getCreator(slug) as Creator;
+export function CheckoutView({ slug, tierId, creator: given }: { slug: string; tierId: string; creator?: Creator }) {
+  const creator = given ?? (getCreator(slug) as Creator);
   const tier = creator.tiers.find((t) => t.id === tierId) as Tier;
-  const { signer, client, address, connect } = useWallet();
+  const { signer, client, address, connect, disconnect } = useWallet();
   const [step, setStep] = useState<Step>("idle");
   const [txHash, setTxHash] = useState("");
   const [error, setError] = useState("");
@@ -59,7 +59,7 @@ export function CheckoutView({ slug, tierId }: { slug: string; tierId: string })
       <Nav />
       <main id="main" className="pt-16 pb-20">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
-          <Link href={`/c/${creator.slug}`} className="inline-flex items-center gap-1.5 mt-8 text-sm text-ink-2 hover:text-pink"><IconArrowLeft className="w-4 h-4" />{creator.name}</Link>
+          <Link href={`/app/c/${creator.slug}`} className="inline-flex items-center gap-1.5 mt-8 text-sm text-ink-2 hover:text-pink"><IconArrowLeft className="w-4 h-4" />{creator.name}</Link>
 
           {step === "done" ? (
             <div className="max-w-lg mx-auto text-center pt-12 rise">
@@ -70,8 +70,8 @@ export function CheckoutView({ slug, tierId }: { slug: string; tierId: string })
               </p>
               <div className="mt-6 text-left"><Receipt label="Membership started" txHash={txHash} /></div>
               <div className="flex flex-wrap justify-center gap-3 mt-8">
-                <Link href={`/c/${creator.slug}`} className={btn.primary}>See member posts</Link>
-                <Link href="/dashboard" className={btn.secondary}>My memberships</Link>
+                <Link href={`/app/c/${creator.slug}`} className={btn.primary}>{creator.posts.length ? "See member posts" : `Visit ${creator.name}`}</Link>
+                <Link href="/app/dashboard" className={btn.secondary}>My memberships</Link>
               </div>
             </div>
           ) : (
@@ -140,6 +140,16 @@ export function CheckoutView({ slug, tierId }: { slug: string; tierId: string })
                         {address ? <>Paying from <span className="font-mono tnum">{address.slice(0, 8)}…{address.slice(-6)}</span>. </> : null}
                         Need test CKB? <a className="underline hover:text-pink" href="https://faucet.nervos.org" target="_blank" rel="noreferrer">Get it free</a>.
                       </p>
+                      <details className="mt-4 rounded-2xl bg-soft px-4 py-3 text-sm">
+                        <summary className="cursor-pointer font-medium">Keep this membership private</summary>
+                        <p className="mt-2 text-ink-2 leading-relaxed">
+                          Memberships are public on the network: anyone who knows this address can see who it supports. To keep it separate from your main wallet, join from a fresh one, such as a second JoyID account. Refunds go back to whichever wallet you join with.
+                        </p>
+                        <div className="mt-3 flex flex-wrap items-center gap-3">
+                          <button onClick={() => { disconnect(); void connect(); }} disabled={busy} className={btn.secondarySm}>Use a different wallet</button>
+                          <Link href="/docs/security#privacy" className="text-ink-2 underline hover:text-pink">How this works</Link>
+                        </div>
+                      </details>
                     </>
                   )}
                 </div>

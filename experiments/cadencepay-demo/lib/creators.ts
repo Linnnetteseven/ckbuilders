@@ -93,6 +93,16 @@ export const CREATORS: Creator[] = [
       "ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqtqq998uz0kwlmdkml8f95uefpme6xrlhcq4q709",
     tiers: [
       {
+        // Short period so the whole lifecycle (join → collect → close) can be tried in ~15 minutes
+        id: "quick-test",
+        name: "Quick test",
+        amount: ckb(70),
+        intervalBlocks: 100n,
+        intervalLabel: "every ~15 minutes",
+        prefundPeriods: 1n,
+        perks: ["Try the whole membership lifecycle in about 15 minutes", "No member posts; this tier is for testing"],
+      },
+      {
         id: "learner",
         name: "Learner",
         amount: ckb(80),

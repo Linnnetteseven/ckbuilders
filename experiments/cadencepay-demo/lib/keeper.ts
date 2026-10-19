@@ -9,7 +9,9 @@
 import { ccc } from "@ckb-ccc/core";
 import {
   buildClaimTx,
+  buildCloseTx,
   findSubscriptions,
+  type Subscription,
   parseSubscription,
   viewSubscription,
   explainScriptError,
@@ -49,6 +51,9 @@ export async function claimOne(outPoint: { txHash: string; index: number }, reci
 
   const tip = await client.getTipHeader();
   const view = viewSubscription(sub, tip.number);
+  if (view.status === "closable") {
+    throw new KeeperError("This membership has run out of payments; close it instead", 409);
+  }
   if (view.status !== "due" && view.blocksUntilNextClaim > 0n) {
     throw new KeeperError(`Not due yet: ${view.blocksUntilNextClaim} blocks remaining`, 409);
   }
@@ -67,22 +72,75 @@ export async function claimOne(outPoint: { txHash: string; index: number }, reci
   }
 }
 
-/** Claim every due subscription paying one of `recipientAddresses`. One tx per subscription. */
+/**
+ * The member's full lock script. Subscription args only hold its hash, so walk
+ * back through the cell's history to a transaction the member signed (the join
+ * or a top-up) and read the lock from their input there.
+ */
+async function findSubscriberLock(client: ccc.Client, sub: Subscription): Promise<ccc.Script> {
+  const typeHash = sub.cell.cellOutput.type!.hash();
+  let txHash: ccc.Hex = sub.cell.outPoint.txHash;
+  for (let step = 0; step < 300; step++) {
+    const res = await client.getTransaction(txHash);
+    if (!res) break;
+    let previous: ccc.Hex | undefined;
+    for (const input of res.transaction.inputs) {
+      const cell = await input.getCell(client);
+      if (cell.cellOutput.lock.hash() === sub.subscriberLockHash) return cell.cellOutput.lock;
+      if (cell.cellOutput.type?.hash() === typeHash) previous = input.previousOutput.txHash;
+    }
+    if (!previous) break;
+    txHash = previous;
+  }
+  throw new KeeperError("Couldn't find the member's address for the refund", 500);
+}
+
+/**
+ * Close a membership that can no longer fund a payment. Anyone may do this;
+ * the script sends every remaining CKB back to the member.
+ */
+export async function closeOne(outPoint: { txHash: string; index: number }): Promise<string> {
+  const client = new ccc.ClientPublicTestnet();
+  const cell = await client.getCellLive({ txHash: outPoint.txHash as ccc.Hex, index: outPoint.index }, true);
+  if (!cell) throw new KeeperError("Cell not found or already spent", 404);
+  const sub = parseSubscription(cell);
+  if (!sub) throw new KeeperError("Not a valid CadencePay v3 subscription", 400);
+  const tip = await client.getTipHeader();
+  if (viewSubscription(sub, tip.number).status !== "closable") {
+    throw new KeeperError("This membership still has payments saved; only its member can end it", 409);
+  }
+  const subscriberLock = await findSubscriberLock(client, sub);
+  const tx = await buildCloseTx({ subscription: sub, subscriberLock, keeper: keeperSigner(client) });
+  try {
+    return await keeperSigner(client).sendTransaction(tx);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new KeeperError(explainScriptError(msg) ?? "Close transaction rejected", 502);
+  }
+}
+
+/**
+ * Keeper run: for every subscription paying one of `recipientAddresses`,
+ * collect it if a payment is due, or close it (refunding the member) if it has
+ * run out. One tx per subscription.
+ */
 export async function claimAllDue(recipientAddresses: string[]) {
   const client = new ccc.ClientPublicTestnet();
   const tip = await client.getTipHeader();
-  const results: { outPoint: string; txHash?: string; error?: string }[] = [];
+  const results: { outPoint: string; action: "collect" | "close"; txHash?: string; error?: string }[] = [];
   for (const address of recipientAddresses) {
     const recipient = await ccc.Address.fromString(address, client);
     const subs = await findSubscriptions(client, { recipientLockHash: recipient.script.hash() });
     for (const sub of subs) {
-      if (sub.terms.nextClaimBlock > tip.number) continue;
-      const op = `${sub.cell.outPoint.txHash}:${sub.cell.outPoint.index}`;
+      const status = viewSubscription(sub, tip.number).status;
+      if (status !== "due" && status !== "closable") continue;
+      const op = { txHash: sub.cell.outPoint.txHash, index: Number(sub.cell.outPoint.index) };
+      const action = status === "closable" ? "close" : "collect";
       try {
-        const txHash = await claimOne({ txHash: sub.cell.outPoint.txHash, index: Number(sub.cell.outPoint.index) }, address);
-        results.push({ outPoint: op, txHash });
+        const txHash = action === "close" ? await closeOne(op) : await claimOne(op, address);
+        results.push({ outPoint: `${op.txHash}:${op.index}`, action, txHash });
       } catch (e) {
-        results.push({ outPoint: op, error: e instanceof Error ? e.message : String(e) });
+        results.push({ outPoint: `${op.txHash}:${op.index}`, action, error: e instanceof Error ? e.message : String(e) });
       }
     }
   }

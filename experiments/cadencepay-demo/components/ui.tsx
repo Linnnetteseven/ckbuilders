@@ -52,7 +52,7 @@ export function Footer() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-wrap justify-between items-center gap-4 text-xs text-ink-3">
         <span>CadencePay · test-network demo · not for real money</span>
         <nav aria-label="Footer" className="flex gap-5">
-          <Link href="/how-it-works" className="hover:text-ink">How it works</Link>
+          <Link href="/app/how-it-works" className="hover:text-ink">How it works</Link>
           <a href="https://github.com/Linnnetteseven/ckbuilders" target="_blank" rel="noreferrer" className="hover:text-ink">Source code</a>
           <a href="https://faucet.nervos.org" target="_blank" rel="noreferrer" className="hover:text-ink">Free test CKB</a>
         </nav>
