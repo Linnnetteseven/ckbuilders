@@ -1,20 +1,65 @@
 {
-  "name": "@cadencepay/sdk",
+  "name": "cadencepay",
   "version": "0.3.0",
-  "description": "TypeScript SDK for CadencePay v3 \u2014 cell-native recurring payments on CKB",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "description": "Recurring payments on CKB where the payer keeps custody: members fund their own subscription cell, creators collect at most the agreed amount per period. SDK for the CadencePay v3 type script.",
+  "keywords": [
+    "ckb",
+    "nervos",
+    "subscriptions",
+    "recurring-payments",
+    "ccc",
+    "web3",
+    "type-script"
+  ],
+  "license": "MIT",
+  "author": "Linnette Mugwanja",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Linnnetteseven/ckbuilders.git",
+    "directory": "experiments/cadencepay-sdk"
+  },
+  "homepage": "https://cadencepay-demo.vercel.app/docs",
+  "bugs": {
+    "url": "https://github.com/Linnnetteseven/ckbuilders/issues"
+  },
+  "type": "commonjs",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
-    "build": "tsc",
+    "clean": "rm -rf dist",
+    "build": "npm run clean && tsc -p tsconfig.json && tsc -p tsconfig.esm.json && echo '{\"type\":\"module\"}' > dist/esm/package.json",
     "test": "tsx --test test/*.test.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run typecheck && npm test && npm run build"
+  },
+  "peerDependencies": {
+    "@ckb-ccc/core": "^1.22.0"
   },
   "devDependencies": {
     "@ckb-ccc/core": "^1.22.0",
     "tsx": "^4.23.15",
     "typescript": "^5.0.0"
-  },
-  "peerDependencies": {
-    "@ckb-ccc/core": "^1.22.0"
   }
 }
