@@ -1,9 +1,10 @@
 /**
- * CadencePay testnet deployment script
+ * Testnet deployment script for the scripts in time-lock-script/build/release
+ * (cadencepay by default; set BINARY=capsule-lock for Message in a Cell).
  *
  * Usage (keeps the key out of shell history):
  *   read -rs PRIVATE_KEY && export PRIVATE_KEY
- *   EXPECTED_CODE_HASH=0x... npx tsx scripts/deploy-testnet.ts
+ *   BINARY=cadencepay EXPECTED_CODE_HASH=0x... npx tsx scripts/deploy-testnet.ts
  *   unset PRIVATE_KEY
  *
  * Refuses to send unless the local binary hashes to EXPECTED_CODE_HASH,
@@ -32,8 +33,10 @@ async function main() {
   // Binary path — compiled RISC-V output
   const binaryPath = resolve(
     __dirname,
-    "../../time-lock-script/build/release/cadencepay"
+    "../../time-lock-script/build/release",
+    process.env.BINARY ?? "cadencepay",
   );
+  if (!/^[a-z-]+$/.test(process.env.BINARY ?? "cadencepay")) throw new Error("BINARY must be a plain script name");
   const binary = readFileSync(binaryPath);
   console.log("Binary size:", binary.length, "bytes");
 
@@ -85,6 +88,8 @@ async function main() {
   console.log(`  typeScriptHashType: "data1" as ccc.HashType,`);
   console.log("\nView on explorer:");
   console.log(`  https://pudge.explorer.nervos.org/transaction/${txHash}`);
+  // The client keeps a socket open; exit explicitly so the terminal returns
+  process.exit(0);
 }
 
 main().catch((err) => {

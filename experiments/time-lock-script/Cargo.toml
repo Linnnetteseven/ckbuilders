@@ -7,6 +7,7 @@ members = [
   # @@INSERTION_POINT@@
   "contracts/cadencepay",
   "contracts/time-lock",
+  "contracts/capsule-lock",
   "tests",
 ]
 
@@ -18,4 +19,7 @@ debug = true
 
 # Smaller on-chain binary (deploy cost is 1 CKB per byte)
 [profile.release.package.cadencepay]
+opt-level = "z"
+
+[profile.release.package.capsule-lock]
 opt-level = "z"

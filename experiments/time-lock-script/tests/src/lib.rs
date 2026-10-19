@@ -12,6 +12,8 @@ use std::str::FromStr;
 mod tests;
 #[cfg(test)]
 mod cadencepay_v3;
+#[cfg(test)]
+mod capsule_lock;
 
 const TEST_ENV_VAR: &str = "MODE";
 
