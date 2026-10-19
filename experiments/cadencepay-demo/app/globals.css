@@ -23,6 +23,7 @@
   --color-sand:      #FFF4DE;
 }
 
+/* data-scroll-behavior="smooth" on <html> lets Next.js turn smoothing off while it resets the scroll on navigation */
 html { background: var(--color-page); color: var(--color-ink); scroll-behavior: smooth; scrollbar-color: var(--color-line) transparent; }
 
 body {
