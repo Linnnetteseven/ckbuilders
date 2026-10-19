@@ -14,6 +14,8 @@ mod tests;
 mod cadencepay_v3;
 #[cfg(test)]
 mod capsule_lock;
+#[cfg(test)]
+mod evidence;
 
 const TEST_ENV_VAR: &str = "MODE";
 

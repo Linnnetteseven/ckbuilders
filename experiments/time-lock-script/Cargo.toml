@@ -8,6 +8,8 @@ members = [
   "contracts/cadencepay",
   "contracts/time-lock",
   "contracts/capsule-lock",
+  "contracts/evidence-ledger",
+  "contracts/evidence-gate",
   "tests",
 ]
 
@@ -22,4 +24,10 @@ debug = true
 opt-level = "z"
 
 [profile.release.package.capsule-lock]
+opt-level = "z"
+
+[profile.release.package.evidence-ledger]
+opt-level = "z"
+
+[profile.release.package.evidence-gate]
 opt-level = "z"

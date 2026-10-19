@@ -40,3 +40,27 @@ Verified on-chain 2026-10-19: committed, and output 0's blake2b hash equals the 
 | Seal legacy capsule (2-min window) | `0x27404b881d65d931d7d1249e09696990f1d810c2f50618104447547d93ca3feb` | ✅ |
 | Owner check-in | `0xe374be19c15e70328d8cf9bfa6a7a58670ce81fdb17c66a7f2f714d14ef4a4a7` | ✅ Capsule re-created; the old link follows it |
 | Beneficiary opens after the window | `0x8e0096f48af270449ca079e32bd60b3f32d7ab34aa718bda50e9f3af01376212` | ✅ Letter decrypts |
+
+## Climate Black Box: Evidence Ledger + Evidence Gate (testnet)
+| Script | Code hash | Deploy tx (cellDep index 0) | Size | Date |
+|---|---|---|---|---|
+| evidence-ledger v0.1 (type, `data1`) | `0x3429e6ce625cf133dccd5b83218b97c14884f1e5031e077c6b289d7f533908e5` | `0x42eedf8a479ab1ee0a178c0c061700ce159f1356f2bcd33d2b9fa7beeb711cfa` | 39,792 B | 2026-10-19 (block 22,795,613) |
+| evidence-gate v0.1 (lock, `data1`) | `0x5b74aa07d17d7d0f53159548ab9ebf4a259f0db1df2130ba5db9b60f16dcfc3d` | `0x80267d1e6dd10cfff0c39cdbf071cda2f45cfb3ca43a7c41ec54902ad2dddabe` | 25,008 B | 2026-10-19 |
+
+Reproducible: `make build CLANG=clang-16 CUSTOM_RUSTFLAGS=""`. Tests: `cargo test -p tests evidence` (31, including a real CadencePay v3 claim paying into the gate). Same deployer as the others. **Never spend these code cells.**
+
+### Climate Black Box: live testnet e2e, evidence-gated funding (2026-10-19, `services/ckb/e2e-funding.mjs` in climate-black-box), all passed
+Ledger type_id `0x9fac11fdd3cc235c8becfbde42121c16664ebc8c475ad30d2827b5edcb9dd258`.
+| Step | Tx | Result |
+|---|---|---|
+| Ledger created (Type ID) | `0x578f05711872933bedfbc72b9d019f7424f4ba18c3948c5c9170f3d422941297` | ✅ |
+| 3 observations, one append | `0x7a1b1c34963569869b20ec734d49e056d07f1b51b817fadf7831cef6b8cb4c7c` | ✅ Running head recomputed on-chain |
+| Donor subscribes via `cadencepay` npm into the Evidence Gate | `0x49f71e713c69ffd78702cd1ad2cb4a580fcb618b1fae45742cb4684f9714aad8` | ✅ First month (150 CKB) into the gate |
+| Project withdraws on clean evidence | `0xee855f7d01cad3d6dfbe75d71549d2c69d933126a5b4e5a7241226a4cb455aa5` | ✅ Gate read the live ledger as a cell dep |
+| Alert recorded | `0xd053830c6d02909b3da70131f23bcb55d3186c53fc0922c72ea615d353ca6c91` | ✅ open_alerts = 1 |
+| Second donation into the gate | `0xaf51c041b747a1284833b8c0ce2f4c5c62b25cd0720913663bcab4cd518b949e` | ✅ |
+| Project withdraws during the alert | (rejected) | ✅ Refused by the gate script |
+| Donor takes the held payment back | `0xcc7cc336b5fee2286e3e5beec9d00685b450bd733d7ad8a6ad5aec6dc7faa009` | ✅ |
+| Alert resolved | `0x669cde98505dfcaddd422b2bc3740d8a73b64f51199c29a692079b7089ea739f` | ✅ open_alerts = 0 |
+| Both subscriptions cancelled via `cadencepay` | `0xa948cfdc…15c2`, `0x0d5389bb…bbbb` | ✅ Balances refunded |
+| History read back and re-folded | n/a | ✅ 5 events, intact |
