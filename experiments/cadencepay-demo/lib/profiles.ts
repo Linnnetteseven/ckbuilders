@@ -41,6 +41,15 @@ export interface ProfileData { v: 1; name: string; craft: string; bio: string; h
 
 /** Display images must come from our Blob store (see /api/upload); anything else is ignored. */
 const IMG_RE = /^https:\/\/[a-z0-9]+\.public\.blob\.vercel-storage\.com\/creators\/([0-9a-f]{16})\/[0-9a-f]{16}\.webp$/;
+const BLOB_BASE = "https://eknwmxhyzmbr64je.public.blob.vercel-storage.com";
+
+/**
+ * Where a display image lives: the owner's folder, named by the file's sha256.
+ * The URL is known before uploading, so it goes into the profile transaction
+ * and that transaction (signed by the owner) authorises the upload.
+ */
+export const imagePath = (lock: ccc.Script, sha256Hex: string) => `creators/${lock.hash().slice(2, 18)}/${sha256Hex.slice(0, 16)}.webp`;
+export const imageUrl = (lock: ccc.Script, sha256Hex: string) => `${BLOB_BASE}/${imagePath(lock, sha256Hex)}`;
 
 const text = (v: unknown, max: number, min = 1) => {
   if (typeof v !== "string") throw new Error("Expected text");
@@ -103,14 +112,18 @@ function toCreator(data: ProfileData, lock: ccc.Script, client: ccc.Client): Cre
   };
 }
 
+/** True if `tx` spent an input with `lock` (its owner signed it). */
+export async function spendsLock(client: ccc.Client, tx: ccc.Transaction, lock: ccc.Script): Promise<boolean> {
+  for (const input of tx.inputs) {
+    if ((await input.getCell(client)).cellOutput.lock.eq(lock)) return true;
+  }
+  return false;
+}
+
 /** True if the tx that created `cell` spent an input with the same lock (the creator signed it). */
 async function signedByOwner(client: ccc.Client, cell: ccc.Cell): Promise<boolean> {
   const res = await client.getTransaction(cell.outPoint.txHash);
-  if (!res) return false;
-  for (const input of res.transaction.inputs) {
-    if ((await input.getCell(client)).cellOutput.lock.eq(cell.cellOutput.lock)) return true;
-  }
-  return false;
+  return !!res && spendsLock(client, res.transaction, cell.cellOutput.lock);
 }
 
 function parse(cell: ccc.Cell, client: ccc.Client): Profile | undefined {
@@ -139,20 +152,29 @@ export async function findProfileBySlug(client: ccc.Client, slug: string): Promi
   return (await findProfiles(client)).find((p) => p.creator.slug === slug);
 }
 
-/** The connected wallet's own profile, if it has one. */
-export async function findMyProfile(client: ccc.Client, lock: ccc.Script): Promise<Profile | undefined> {
+/**
+ * The connected wallet's profile cells, newest first. Normally one; publishing
+ * twice before the first confirmed can leave more, and the next save merges them.
+ */
+export async function findMyProfiles(client: ccc.Client, lock: ccc.Script): Promise<Profile[]> {
+  const found: Profile[] = [];
   for await (const cell of client.findCells({ script: lock, scriptType: "lock", scriptSearchMode: "exact", filter: { script: PROFILE_TYPE } }, "desc")) {
     const p = parse(cell, client);
-    if (p) return p;
+    if (p) found.push(p);
   }
-  return undefined;
+  return found;
 }
 
-/** Publish or update a profile. Editing consumes the old cell, so its deposit carries over. */
-export async function buildProfileTx(signer: ccc.Signer, data: ProfileData, existing?: Profile): Promise<ccc.Transaction> {
+/** The connected wallet's own profile, if it has one. */
+export async function findMyProfile(client: ccc.Client, lock: ccc.Script): Promise<Profile | undefined> {
+  return (await findMyProfiles(client, lock))[0];
+}
+
+/** Publish or update a profile. Editing consumes the old cells, so their deposits carry over. */
+export async function buildProfileTx(signer: ccc.Signer, data: ProfileData, existing: Profile[] = []): Promise<ccc.Transaction> {
   const { script: lock } = await signer.getRecommendedAddressObj();
   const tx = ccc.Transaction.from({
-    inputs: existing ? [{ previousOutput: existing.cell.outPoint }] : [],
+    inputs: existing.map((p) => ({ previousOutput: p.cell.outPoint })),
     outputs: [{ lock, type: PROFILE_TYPE }],
     outputsData: [encodeProfile(data)],
   });
@@ -164,9 +186,9 @@ export async function buildProfileTx(signer: ccc.Signer, data: ProfileData, exis
   return tx;
 }
 
-/** Remove a profile; its deposit comes back to the creator. */
-export async function buildRemoveProfileTx(signer: ccc.Signer, existing: Profile): Promise<ccc.Transaction> {
-  const tx = ccc.Transaction.from({ inputs: [{ previousOutput: existing.cell.outPoint }] });
+/** Remove a profile (every copy); the deposits come back to the creator. */
+export async function buildRemoveProfileTx(signer: ccc.Signer, existing: Profile[]): Promise<ccc.Transaction> {
+  const tx = ccc.Transaction.from({ inputs: existing.map((p) => ({ previousOutput: p.cell.outPoint })) });
   tx.addCellDeps(ALWAYS_SUCCESS_DEP);
   await tx.completeFeeBy(signer);
   return tx;

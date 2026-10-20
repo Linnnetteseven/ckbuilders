@@ -2,15 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "node:crypto";
 import { put } from "@vercel/blob";
 import { ccc } from "@ckb-ccc/core";
-import { CHALLENGE_TTL_MS, uploadMessage } from "@/lib/challenge";
-import { OwnershipError, provenLock } from "@/lib/ownership.server";
+import { PROFILE_TYPE, imagePath, imageUrl, spendsLock } from "@/lib/profiles";
 
 /**
  * Upload a creator's display image to Vercel Blob.
  *
  * The browser shrinks the image to WebP first (which also drops photo
- * metadata such as location), then the creator's wallet signs a message naming
- * the file's sha256. The file is stored under that wallet's own folder,
+ * metadata such as location). The image's URL is fixed by the owner's lock
+ * and the file's sha256, so the browser puts it in the profile transaction,
+ * sends that, then uploads here with the transaction hash. No extra signature:
+ * the upload is accepted only if that transaction creates a profile naming
+ * exactly this file and also spends a cell with the profile's lock, i.e. the
+ * owner signed it. The file goes in the owner's folder,
  * `creators/<lock hash prefix>/<file hash prefix>.webp`; profiles only accept
  * images from their owner's folder (lib/profiles.ts).
  */
@@ -39,31 +42,39 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Expected a form upload" }, { status: 400 });
   }
   const file = form.get("file");
-  const address = form.get("address");
-  const issuedAt = Number(form.get("issuedAt"));
-  let sig: Partial<ccc.Signature> | undefined;
-  try { sig = JSON.parse(String(form.get("signature"))); } catch { sig = undefined; }
-
-  if (!(file instanceof Blob) || typeof address !== "string" || !/^ck[bt]1[0-9a-z]{20,200}$/.test(address) ||
-      !Number.isFinite(issuedAt) || !sig || typeof sig.signature !== "string" || typeof sig.identity !== "string" || typeof sig.signType !== "string") {
-    return NextResponse.json({ error: "Expected { file, address, issuedAt, signature }" }, { status: 400 });
+  const txHash = form.get("txHash");
+  if (!(file instanceof Blob) || typeof txHash !== "string" || !/^0x[0-9a-f]{64}$/.test(txHash)) {
+    return NextResponse.json({ error: "Expected { file, txHash }" }, { status: 400 });
   }
-  if (Math.abs(now - issuedAt) > CHALLENGE_TTL_MS) return NextResponse.json({ error: "Signature expired; please try again" }, { status: 401 });
   if (file.size > MAX_BYTES) return NextResponse.json({ error: "Image is too large (max 1 MB after resizing)" }, { status: 413 });
 
   const bytes = Buffer.from(await file.arrayBuffer());
   if (!isWebp(bytes)) return NextResponse.json({ error: "Expected a WebP image" }, { status: 415 });
   const digest = createHash("sha256").update(bytes).digest("hex");
 
-  let lock: ccc.Script;
+  // The transaction may still be on its way to our node: the browser retries on 409
+  const client = new ccc.ClientPublicTestnet();
+  let lock: ccc.Script | undefined;
   try {
-    lock = await provenLock(new ccc.ClientPublicTestnet(), address, uploadMessage(address, digest, issuedAt), sig as ccc.Signature);
+    const res = await client.getTransaction(txHash);
+    if (!res || res.status === "rejected" || res.status === "unknown") {
+      recent.pop(); // waiting for the tx to arrive isn't counted against the upload limit
+      return NextResponse.json({ error: "Your page's transaction isn't on the network yet" }, { status: 409 });
+    }
+    const tx = res.transaction;
+    const i = tx.outputs.findIndex((o, k) => {
+      if (!o.type?.eq(PROFILE_TYPE)) return false;
+      try { return JSON.parse(ccc.bytesTo(tx.outputsData[k] ?? "0x", "utf8")).img === imageUrl(o.lock, digest); } catch { return false; }
+    });
+    if (i >= 0 && (await spendsLock(client, tx, tx.outputs[i].lock))) lock = tx.outputs[i].lock;
   } catch (e) {
-    return NextResponse.json({ error: e instanceof OwnershipError ? e.message : "Could not verify the signature" }, { status: 401 });
+    console.error("upload check error", e);
+    return NextResponse.json({ error: "Couldn't check your page's transaction; please try again" }, { status: 502 });
   }
+  if (!lock) return NextResponse.json({ error: "That transaction doesn't publish this image" }, { status: 403 });
 
   try {
-    const blob = await put(`creators/${lock.hash().slice(2, 18)}/${digest.slice(0, 16)}.webp`, bytes, {
+    const blob = await put(imagePath(lock, digest), bytes, {
       access: "public",
       contentType: "image/webp",
       addRandomSuffix: false,
