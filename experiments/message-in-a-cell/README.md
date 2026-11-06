@@ -33,6 +33,9 @@ PRIVATE_KEY=... npx tsx scripts/e2e-testnet.ts
 ```
 Video and voice uploads need `BLOB_READ_WRITE_TOKEN` (a Vercel Blob store connected to the project).
 
+## Deploy
+A push to `main` that changes this folder redeploys production through Vercel's Git integration, and a PR gets a preview. The Vercel root directory is `experiments/message-in-a-cell`, so run `vercel deploy` from the repo root if you ever need it by hand.
+
 ## Honest limits
 - In link mode, the sender chose the words, so the sender could also open it on the day. Seal to the recipient's wallet to rule that out.
 - The message is encrypted, not time-locked: anyone with the full key (link + words) could decrypt it early from chain data. Only the CKB is truly locked until the date. Stretch goal: drand timelock encryption.
