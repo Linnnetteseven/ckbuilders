@@ -349,9 +349,16 @@ function Rules() {
   );
 }
 
-function Developers() {
+interface CodeProps {
+  /** Highlighted HTML, made on the server (see app/page.tsx). */
+  snippet: string;
+  command: string;
+  /** The install command as plain text, for the copy button. */
+  cmd: string;
+}
+
+function Developers({ snippet, command, cmd }: CodeProps) {
   const [copied, setCopied] = useState(false);
-  const cmd = "npm install cadencepay @ckb-ccc/core";
   return (
     <section aria-labelledby="dev-h" className="px-4 sm:px-8 pb-24 sm:pb-36">
       <div className="max-w-[90rem] mx-auto grid lg:grid-cols-[1fr_1.15fr] gap-10 lg:gap-16 items-center">
@@ -369,21 +376,11 @@ function Developers() {
         </div>
         <div className="rounded-[1.6rem] bg-soft border border-line overflow-hidden">
           <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-line">
-            <code className="font-mono text-[13px] sm:text-sm text-ink truncate"><span className="text-pink">$</span> {cmd}</code>
+            <code className="font-mono text-[13px] sm:text-sm text-ink truncate"><span className="text-pink">$</span> <span dangerouslySetInnerHTML={{ __html: command }} /></code>
             <button onClick={() => { void navigator.clipboard?.writeText(cmd).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1600); }); }}
               className="pill pill-sm pill-white shrink-0 border-line!">{copied ? "Copied" : "Copy"}</button>
           </div>
-          <pre className="px-5 py-5 font-mono text-[12.5px] sm:text-[13px] leading-[1.75] text-ink-2 overflow-x-auto"><code>{`import { buildSubscribeTx } from "cadencepay";
-
-const tx = await buildSubscribeTx({
-  subscriber: signer,          // the member's wallet
-  recipientLock: creator.script,
-  amount: 100n * 100_000_000n, // 100 CKB
-  intervalBlocks: 40_320n,     // about a week
-  prefundPeriods: 3n,
-  tip,
-});
-await signer.sendTransaction(tx);`}</code></pre>
+          <div className="code-block px-5 py-5 font-mono text-[12.5px] sm:text-[13px] leading-[1.75]" dangerouslySetInnerHTML={{ __html: snippet }} />
         </div>
       </div>
     </section>
@@ -432,7 +429,7 @@ function SiteFooter() {
   );
 }
 
-export function Landing() {
+export function Landing(code: CodeProps) {
   const sentinel = useRef<HTMLDivElement>(null);
   const [past, setPast] = useState(false);
   useEffect(() => {
@@ -460,7 +457,7 @@ export function Landing() {
         <Process />
         <Tickets />
         <Rules />
-        <Developers />
+        <Developers {...code} />
         <Finale />
       </main>
       <SiteFooter />

@@ -243,3 +243,7 @@ p { text-wrap: pretty; }
 .cover-drift { transform-origin: top; animation: cover-drift linear both; animation-timeline: scroll(root); animation-range: 0 420px; }
 @keyframes cover-drift { from { transform: none; } to { transform: translateY(32%) scale(1.06); } }
 @media (prefers-reduced-motion: reduce) { .cover-drift { animation: none; } }
+
+/* Syntax-highlighted code (lib/highlight.ts) */
+.code-block pre { margin: 0; overflow-x: auto; background: transparent !important; font: inherit; }
+.code-block code { font: inherit; }
